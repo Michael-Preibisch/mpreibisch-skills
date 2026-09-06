@@ -1,0 +1,43 @@
+{
+  "repository": "https://github.com/Michael-Preibisch/second-brain",
+  "commit": "f83f1c52517f58cc738b2518d9d77cfe9a22f282",
+  "path": "plugins/second-brain/skills/clear-writing",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "git_blob": "05469826d1d75ffec7b25471d8a0601c155a5c17",
+      "sha256": "f99f727f5a908df80f63c889e4e84a56a4026122bb73c050949e61bee33c2e33"
+    },
+    {
+      "path": "hooks/clear-writing-check.mjs",
+      "git_blob": "f83e1d8ed78571923d4061b3b6df968235183191",
+      "sha256": "6fc0e3f5c004f5fe33afa282a0e61c1e9bef342316812feaab0c82a3d340795d"
+    },
+    {
+      "path": "output-style.md",
+      "git_blob": "3c401a35721e1400be60ad1bf9971c6ecbc527ef",
+      "sha256": "a9d982a5ef3fb8f4cac23efbd267c31af1c656a4b6a44d3834caf4f54692b671"
+    },
+    {
+      "path": "references/formatting.md",
+      "git_blob": "4921735f2bc590e60c2bb88f6e96a5e4f81e0eff",
+      "sha256": "1fed147529fc1bee81ad3f7746f2a6ef9741dbba4af1203343cdf9dffcd11599"
+    },
+    {
+      "path": "references/grammar.md",
+      "git_blob": "af023b967fc782e0cb916b8e3ee8cf6cbe01fd21",
+      "sha256": "31984cccdcae90fb8f3a8223d724bce29cf021e82003b7c32353e534a4b6ff4b"
+    },
+    {
+      "path": "references/plain-language.md",
+      "git_blob": "393a56a2dfe5fe0e8bc5e5152fed49ab81fef866",
+      "sha256": "bd85746ed386123f9e1445f34258967a0ef07ccf822771689787a69d62c264f7"
+    },
+    {
+      "path": "references/word-list.md",
+      "git_blob": "ee4cf5a21ab46327dbccfefe9d723ac6047da65d",
+      "sha256": "cf7a5712ad843a1be2b64382bc7ee5a5c42b0814e0f5ef4c20bf59edf2dfb123"
+    }
+  ],
+  "adaptations": []
+}

@@ -1,0 +1,9 @@
+{
+  "name": "mpreibisch-claude",
+  "version": "1.0.0",
+  "description": "Cross-model consensus, review, exploration, implementation, and clear writing.",
+  "author": {
+    "name": "mpreibisch-skills contributors"
+  },
+  "skills": "./skills/"
+}

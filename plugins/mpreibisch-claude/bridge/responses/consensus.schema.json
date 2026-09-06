@@ -1,0 +1,180 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "blocked",
+        "incomplete"
+      ],
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "supports": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "observation",
+          "supports"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "position": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "type": "string",
+          "enum": [
+            "codex",
+            "claude"
+          ],
+          "minLength": 1
+        },
+        "conclusion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "minLength": 1
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "disagreements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "claim": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "resolution_needed": {
+                "type": "string",
+                "minLength": 1
+              },
+              "material": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "claim",
+              "rationale",
+              "evidence_ids",
+              "resolution_needed",
+              "material"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "changed_beliefs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "agent",
+        "conclusion",
+        "assumptions",
+        "evidence_ids",
+        "confidence",
+        "alternatives",
+        "disagreements",
+        "changed_beliefs"
+      ],
+      "additionalProperties": false
+    },
+    "agrees_with_candidate": {
+      "type": "boolean"
+    },
+    "candidate_conclusion": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "summary",
+    "evidence",
+    "uncertainties",
+    "position",
+    "agrees_with_candidate",
+    "candidate_conclusion"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,47 @@
+{
+  "protocol_version": "1",
+  "skill": "delegate-explore",
+  "context": {
+    "broader_goal": "Make checkout retries safe so customers do not receive duplicate orders.",
+    "motivations": "Support reports suggest retries after a timeout can create a second order.",
+    "constraints": "Keep the public API stable. This lane is read-only. Do not access production or customer data.",
+    "decision_rationale": "Trace existing request IDs before choosing storage for idempotency keys; reuse is preferable if the lifecycle fits.",
+    "intended_outcome": "A grounded choice of where to enforce idempotency, with fewer duplicate orders and no API break.",
+    "delegation_purpose": "Map the retry and order-creation paths so the main agent can design the implementation."
+  },
+  "scope": {
+    "workspace": "/absolute/path/to/checkout-repo",
+    "read_paths": [
+      "src/checkout",
+      "tests/checkout"
+    ],
+    "write_paths": [],
+    "exclusions": [
+      "Credentials, production systems, unrelated modules, and all implementation changes."
+    ],
+    "external_side_effects": []
+  },
+  "task": {
+    "assignment": "Trace retry entry points through order creation and identify existing request IDs. Find every caller inside the read scope.",
+    "expected_output": "A Markdown call-path map plus JSON observations, evidence, uncertainties, and recommendations.",
+    "acceptance_criteria": [
+      "Name the scoped entry points and order-creation functions with file/line evidence.",
+      "Explain the lifetime of any existing request ID and state coverage gaps."
+    ],
+    "verification_commands": [],
+    "inputs": [
+      {
+        "source": "Main agent project inspection",
+        "snapshot": "Replace with the actual starting commit and dirty/untracked state.",
+        "content_or_path": "Replace with relevant project conventions, file paths, and observed retry behavior."
+      }
+    ]
+  },
+  "exchange": {
+    "phase": "single",
+    "round": 0,
+    "max_rounds": 3,
+    "positions": [],
+    "candidate_conclusion": ""
+  }
+}

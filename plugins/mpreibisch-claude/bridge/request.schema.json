@@ -1,0 +1,324 @@
+{
+  "type": "object",
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "enum": [
+        "1"
+      ],
+      "minLength": 1
+    },
+    "skill": {
+      "type": "string",
+      "enum": [
+        "consensus",
+        "adversarial-review",
+        "delegate-explore",
+        "delegate-implement"
+      ],
+      "minLength": 1
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "broader_goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "motivations": {
+          "type": "string",
+          "minLength": 1
+        },
+        "constraints": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "intended_outcome": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delegation_purpose": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "broader_goal",
+        "motivations",
+        "constraints",
+        "decision_rationale",
+        "intended_outcome",
+        "delegation_purpose"
+      ],
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "workspace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "read_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "write_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "exclusions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "external_side_effects": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "workspace",
+        "read_paths",
+        "write_paths",
+        "exclusions",
+        "external_side_effects"
+      ],
+      "additionalProperties": false
+    },
+    "task": {
+      "type": "object",
+      "properties": {
+        "assignment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_output": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "verification_commands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "snapshot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "content_or_path": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "source",
+              "snapshot",
+              "content_or_path"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "assignment",
+        "expected_output",
+        "acceptance_criteria",
+        "verification_commands",
+        "inputs"
+      ],
+      "additionalProperties": false
+    },
+    "exchange": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": [
+            "single",
+            "assess",
+            "exchange"
+          ],
+          "minLength": 1
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3
+        },
+        "positions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "agent": {
+                "type": "string",
+                "enum": [
+                  "codex",
+                  "claude"
+                ],
+                "minLength": 1
+              },
+              "conclusion": {
+                "type": "string",
+                "minLength": 1
+              },
+              "assumptions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "evidence_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "confidence": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "minLength": 1
+              },
+              "alternatives": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "disagreements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "claim": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "rationale": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "evidence_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "resolution_needed": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "material": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "claim",
+                    "rationale",
+                    "evidence_ids",
+                    "resolution_needed",
+                    "material"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "changed_beliefs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": [
+              "agent",
+              "conclusion",
+              "assumptions",
+              "evidence_ids",
+              "confidence",
+              "alternatives",
+              "disagreements",
+              "changed_beliefs"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "candidate_conclusion": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "phase",
+        "round",
+        "max_rounds",
+        "positions",
+        "candidate_conclusion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "protocol_version",
+    "skill",
+    "context",
+    "scope",
+    "task",
+    "exchange"
+  ],
+  "additionalProperties": false
+}

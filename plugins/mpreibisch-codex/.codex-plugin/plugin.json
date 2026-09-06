@@ -1,0 +1,25 @@
+{
+  "name": "mpreibisch-codex",
+  "version": "1.0.0",
+  "description": "Cross-model consensus, review, exploration, implementation, and clear writing.",
+  "author": {
+    "name": "mpreibisch-skills contributors"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Mpreibisch skills for Codex",
+    "shortDescription": "Collaborate with Claude Code through scoped handoffs.",
+    "longDescription": "Use Claude Code for independent consensus, critical review, bounded exploration, and implementation with full task context. Includes clear-writing.",
+    "developerName": "mpreibisch-skills contributors",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Ask Claude to review my plan.",
+      "Explore this codebase with Claude.",
+      "Reach consensus on this decision."
+    ]
+  }
+}
