@@ -17,12 +17,23 @@ Start a new Codex session after installation. Install Python 3.10+ and ensure `c
 is on `PATH` in the environment that runs Codex. Codex itself can authenticate with
 `codex login`. CLI credentials stay in each CLI's normal credential store. If you
 already use an API key or supported provider login, keep that configuration outside
-the plugin. Nothing here installs CLIs or chooses a model for you.
+the plugin. Installation does not install the CLIs.
 
 The repository's `.agents/plugins/marketplace.json` uses relative plugin paths.
 Register the clone's root on each machine. If you move the clone, register its new
 location. This marketplace is named `mpreibisch-skills`; it does not depend on a
 pre-existing personal marketplace. Installation copies a self-contained package.
+
+## Models
+
+Claude defaults to Opus 5 (`claude-opus-5`) at high effort for consensus, review, and
+exploration. Implementation uses Opus 5 at low effort. These settings affect the
+receiving Claude process, not your Codex session.
+
+Ask for any model supported by your Claude CLI and account. The helper accepts
+`--model MODEL_ID --effort LEVEL`. With `--model` alone, effort uses the model's own
+default; `--effort` alone keeps the workflow's model. Use `--effort default` to omit
+the effort setting. See [model settings and examples](bridge/cli.md#models-and-effort).
 
 ## Examples
 

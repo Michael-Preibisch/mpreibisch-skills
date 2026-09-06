@@ -29,6 +29,20 @@ def require(condition, message):
 
 def main():
     runner = load_runner()
+    require((ROOT / "AGENTS.md").is_file(), "missing repository authoring guidelines")
+    claude_instructions = ROOT / "CLAUDE.md"
+    require(claude_instructions.is_symlink(), "CLAUDE.md must be a symlink to AGENTS.md")
+    require(claude_instructions.readlink() == Path("AGENTS.md"), "CLAUDE.md must use a relative AGENTS.md link")
+    require((ROOT / "README.md").is_file(), "missing repository installation guide")
+    model_defaults = runner.read_json(CODEX / "bridge/models.json")
+    require(set(model_defaults) == {"codex", "claude"}, "missing target model defaults")
+    for target, workflows in model_defaults.items():
+        require(set(workflows) == {"default", "delegate-implement"}, f"invalid model workflows: {target}")
+        for settings in workflows.values():
+            runner.validate(settings, {"type": "object", "properties": {
+                "model": {"type": "string", "minLength": 1},
+                "effort": {"type": "string", "minLength": 1}},
+                "required": ["model", "effort"], "additionalProperties": False})
     provenance = runner.read_json(ROOT / "provenance/clear-writing.json")
     expected_files = {entry["path"] for entry in provenance["files"]}
     for host, plugin, target in (("codex", CODEX, "claude"), ("claude", CLAUDE, "codex")):

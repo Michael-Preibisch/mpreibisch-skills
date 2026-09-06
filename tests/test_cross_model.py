@@ -146,6 +146,64 @@ class HandoffTests(unittest.TestCase):
         impl = runner.build_command("codex", self.request, self.root, schema)
         self.assertEqual(impl[impl.index("--sandbox") + 1], "workspace-write")
 
+    def test_workflow_model_and_effort_defaults_for_both_targets(self):
+        for skill in ("consensus", "adversarial-review", "delegate-explore", "delegate-implement"):
+            self.request["skill"] = skill
+            for target in ("claude", "codex"):
+                implementation = skill == "delegate-implement"
+                model = "claude-opus-5" if target == "claude" else (
+                    "gpt-5.6-luna" if implementation else "gpt-5.6-terra")
+                effort = ("low" if target == "claude" else "xhigh") if implementation else "high"
+                schema = PLUGIN / "bridge/responses" / (skill + ".schema.json")
+                with self.subTest(skill=skill, target=target):
+                    command = runner.build_command(target, self.request, self.root, schema)
+                    self.assertEqual(command[command.index("--model") + 1], model)
+                    if target == "claude":
+                        self.assertEqual(command[command.index("--effort") + 1], effort)
+                    else:
+                        self.assertIn('model_reasoning_effort="' + effort + '"', command)
+
+    def test_explicit_models_use_their_own_effort_default(self):
+        schema = PLUGIN / "bridge/responses/delegate-explore.schema.json"
+        for target in ("claude", "codex"):
+            for model in ("opus", "future-model-2030", "provider/custom-model:v2"):
+                with self.subTest(target=target, model=model):
+                    command = runner.build_command(target, self.request, self.root, schema, model)
+                    self.assertEqual(command[command.index("--model") + 1], model)
+                    self.assertNotIn("--effort", command)
+                    self.assertFalse(any(arg.startswith("model_reasoning_effort=") for arg in command))
+
+    def test_effort_overrides_are_independent_of_model_selection(self):
+        for target, model in (("claude", "claude-opus-5"), ("codex", "gpt-5.6-terra")):
+            with self.subTest(target=target):
+                self.assertEqual(runner.select_model(target, "delegate-explore", effort="low"), (model, "low"))
+                self.assertEqual(runner.select_model(target, "delegate-explore", effort="default"), (model, None))
+                self.assertEqual(runner.select_model(target, "delegate-explore", "future-model", "new-effort"),
+                                 ("future-model", "new-effort"))
+                self.assertEqual(runner.select_model(target, "delegate-explore", "custom", "default"), ("custom", None))
+
+    def test_blank_model_and_effort_overrides_fail_before_dispatch(self):
+        for kwargs in ({"model": ""}, {"model": " "}, {"effort": ""}, {"effort": " "}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                runner.select_model("claude", "delegate-explore", **kwargs)
+
+    def test_cli_accepts_model_and_effort_overrides_for_both_hosts(self):
+        request_file = self.root / "request.json"
+        runner.write_json(request_file, self.request)
+        for host in ("claude", "codex"):
+            output = self.root / (host + "-override")
+            result = subprocess.run([sys.executable, str(ROOT / "plugins" / ("mpreibisch-" + host) / "scripts/cross_model.py"),
+                "--request", str(request_file), "--output-dir", str(output), "--dry-run",
+                "--model", "another-model", "--effort", "xhigh"], capture_output=True, text=True)
+            with self.subTest(host=host):
+                self.assertEqual(result.returncode, 0, result.stderr)
+                command = runner.read_json(output / "command.json")
+                self.assertEqual(command[command.index("--model") + 1], "another-model")
+                if host == "codex":
+                    self.assertEqual(command[command.index("--effort") + 1], "xhigh")
+                else:
+                    self.assertIn('model_reasoning_effort="xhigh"', command)
+
     def invoke_stub(self, host, behavior="success", status="complete", timeout=10):
         if os.name == "nt":
             self.skipTest("Executable stub scripts use a POSIX shebang; request tests are portable.")

@@ -19,8 +19,76 @@ exchange rounds after independent assessment.
 
 Clone or copy this repository anywhere. Install each package on its calling host;
 authenticate its receiving CLI separately. Both packages contain all their runtime
-resources. No symlinks, absolute installation paths, account IDs, model names, or
-credentials are embedded. Python 3.10+ is the only helper dependency.
+resources, with no machine-specific paths, profiles, account IDs, or credentials.
+Python 3.10+ is the only helper dependency.
+
+## Repository contents
+
+| Path | Contents |
+| --- | --- |
+| `plugins/mpreibisch-codex/` | Codex plugin, five skills, shared bridge, and Claude CLI adapter |
+| `plugins/mpreibisch-claude/` | Claude Code plugin, matching skills, shared bridge, and Codex CLI adapter |
+| `.agents/plugins/marketplace.json` | Codex marketplace manifest |
+| `.claude-plugin/marketplace.json` | Claude Code marketplace manifest |
+| `provenance/` | Pinned source and hashes for `clear-writing` |
+| `schemas/`, `scripts/`, `tests/` | Offline validation, package synchronization, and stub CLI tests |
+| [AGENTS.md](AGENTS.md) | Skill authoring guidelines for both agents |
+| `CLAUDE.md` | Relative symlink to `AGENTS.md` |
+
+## Install
+
+Install [Codex CLI](https://developers.openai.com/codex/cli),
+[Claude Code](https://code.claude.com/docs/en/setup), and Python 3.10+.
+Both CLIs must be on `PATH` in the environment running the calling agent. Authenticate
+each CLI using your own account; credentials remain outside the repository.
+
+```sh
+git clone https://github.com/Michael-Preibisch/mpreibisch-skills.git
+cd mpreibisch-skills
+codex login
+claude auth login
+```
+
+Install the Codex plugin from the clone's root:
+
+```sh
+codex plugin marketplace add .
+codex plugin add mpreibisch-codex@mpreibisch-skills
+```
+
+Install the Claude Code plugin from the same directory:
+
+```sh
+claude plugin marketplace add .
+claude plugin install mpreibisch-claude@mpreibisch-skills --scope user
+```
+
+Start a new session in each host. In Codex, invoke `$consensus`, `$adversarial-review`,
+`$delegate-explore`, `$delegate-implement`, or `$clear-writing`. In Claude Code, use
+`/mpreibisch-claude:consensus` and the corresponding namespaced skill names.
+The host READMEs above include examples. Repeat installation on each machine;
+relative marketplace paths let the clone live anywhere. A private repository requires
+GitHub access to clone. Installing a plugin does not authenticate the receiving CLI.
+
+## Default models
+
+The defaults apply to the receiving agent in each cross-model call:
+
+| Workflow | Claude Code target | Codex target |
+| --- | --- | --- |
+| Consensus, adversarial review, exploration | Opus 5 (`claude-opus-5`), high | Terra (`gpt-5.6-terra`), high |
+| Implementation | Opus 5 (`claude-opus-5`), low | Luna (`gpt-5.6-luna`), xhigh |
+
+All models and aliases supported by the receiving CLI and your account remain
+available. Ask the calling agent to use a specific model and effort, or pass
+`--model MODEL_ID --effort LEVEL` to the helper. With only `--model`, the helper omits
+effort so the selected model can use its own default. With only `--effort`, it keeps
+the workflow's default model. `--effort default` also omits the effort setting.
+
+Defaults live in [models.json](plugins/mpreibisch-codex/bridge/models.json).
+The [CLI guide](plugins/mpreibisch-codex/bridge/cli.md#models-and-effort) documents the
+flags and official model references. The helper does not whitelist models or silently
+substitute unavailable ones. `clear-writing` uses the calling agent's model.
 
 ## Validate
 
@@ -55,6 +123,11 @@ Run `python3 scripts/sync_plugins.py` to copy common files to the Claude package
 Keep `bridge/host.json`, manifests, and plugin READMEs host-specific. Run validation
 before committing. Both installed packages work without the other package or the
 repository's maintenance scripts.
+
+Follow [AGENTS.md](AGENTS.md) when creating or changing skills. `CLAUDE.md` points to
+the same instructions. Preserve that relative symlink when cloning on systems where
+Git symlink checkout needs explicit support. Plugin packages themselves contain no
+symlinks and remain independent of this repository-only instruction link.
 
 The [clear-writing provenance record](provenance/clear-writing.json) records the exact
 source commit and Git/SHA-256 hashes. All seven upstream files are preserved byte for

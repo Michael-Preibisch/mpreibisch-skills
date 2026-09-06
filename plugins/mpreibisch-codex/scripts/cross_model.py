@@ -100,7 +100,26 @@ def prepare(request):
     return workspace, implementation
 
 
-def build_command(target, request, output, schema_path, model=None):
+def select_model(target, skill, model=None, effort=None):
+    """Apply workflow defaults without constraining explicit model choices."""
+    for label, value in (("model", model), ("effort", effort)):
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise ValueError(f"{label} must not be empty")
+    model_defaults = read_json(BRIDGE / "models.json")
+    if target not in model_defaults:
+        raise ValueError("unknown target CLI")
+    settings = model_defaults[target]
+    defaults = settings.get(skill, settings["default"])
+    selected_model = defaults["model"] if model is None else model
+    # An explicit model can have a different effort vocabulary or no effort control.
+    selected_effort = defaults["effort"] if model is None and effort is None else effort
+    if selected_effort == "default":
+        selected_effort = None
+    return selected_model, selected_effort
+
+
+def build_command(target, request, output, schema_path, model=None, effort=None):
+    model, effort = select_model(target, request["skill"], model, effort)
     implementation = request["skill"] == "delegate-implement"
     if target == "claude":
         tool_names = "Read,Glob,Grep" + (",Edit,Write,Bash" if implementation else "")
@@ -128,8 +147,12 @@ def build_command(target, request, output, schema_path, model=None):
             command.append("--skip-git-repo-check")
     else:
         raise ValueError("unknown target CLI")
-    if model:
-        command.extend(["--model", model])
+    command.extend(["--model", model])
+    if effort is not None:
+        if target == "claude":
+            command.extend(["--effort", effort])
+        else:
+            command.extend(["-c", "model_reasoning_effort=" + json.dumps(effort)])
     if target == "codex":
         command.append("-")
     return command
@@ -190,7 +213,7 @@ def run(args):
         raise ValueError("output-dir must be outside the workspace")
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
     write_json(output / "request.json", request)
-    command = build_command(target, request, output, schema_path, args.model)
+    command = build_command(target, request, output, schema_path, args.model, args.effort)
     write_json(output / "command.json", command)
     if args.dry_run:
         print(f"Validated {request['skill']} -> {target}; command saved in {output}")
@@ -237,7 +260,8 @@ def main():
     parser.add_argument("--request", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--timeout", type=int, default=600)
-    parser.add_argument("--model")
+    parser.add_argument("--model", help="Any model ID or alias accepted by the receiving CLI; overrides the workflow default")
+    parser.add_argument("--effort", help="Override reasoning effort; 'default' omits the CLI effort setting")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.timeout <= 0:

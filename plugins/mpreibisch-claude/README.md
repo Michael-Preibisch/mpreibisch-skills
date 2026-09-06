@@ -27,6 +27,17 @@ For temporary local testing without installation, run from the repository root:
 claude --plugin-dir ./plugins/mpreibisch-claude
 ```
 
+## Models
+
+Codex defaults to Terra (`gpt-5.6-terra`) at high effort for consensus, review, and
+exploration. Implementation uses Luna (`gpt-5.6-luna`) at xhigh effort. These settings
+affect the receiving Codex process, not your Claude Code session.
+
+Ask for any model supported by your Codex CLI and account. The helper accepts
+`--model MODEL_ID --effort LEVEL`. With `--model` alone, effort uses the model's own
+default; `--effort` alone keeps the workflow's model. Use `--effort default` to omit
+the effort setting. See [model settings and examples](bridge/cli.md#models-and-effort).
+
 ## Examples
 
 Invoke the namespaced skills in Claude Code:

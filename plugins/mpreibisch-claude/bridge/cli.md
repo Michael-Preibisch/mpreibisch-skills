@@ -19,8 +19,8 @@ python3 "$PLUGIN_ROOT/scripts/cross_model.py" \
 ```
 
 `--output-dir` must not exist. The caller creates only its parent scratch directory.
-Set `--timeout 600` to change the default ten-minute timeout. Pass `--model MODEL`
-only for an explicitly chosen model; otherwise the target CLI selects its default.
+Set `--timeout 600` to change the default ten-minute timeout. Model and effort
+defaults come from [models.json](models.json); user choices override them.
 Use `--dry-run` to validate and write `command.json` without invoking a model.
 `MAX_ROUNDS` belongs in the handoff's `exchange.max_rounds`, not this timeout.
 
@@ -28,6 +28,43 @@ The helper starts a fresh session for each call, passing the full request throug
 stdin. It uses argument arrays, not shell interpolation. An exit code of zero means
 the response passed the schema and the peer reported `complete`. A nonzero exit
 means the main agent must inspect the response or failure diagnostics.
+
+## Models and effort
+
+These defaults apply to the receiving CLI, not to the calling agent's model:
+
+| Workflow | Claude Code target | Codex target |
+| --- | --- | --- |
+| Consensus, adversarial review, exploration | `claude-opus-5`, `high` | `gpt-5.6-terra`, `high` |
+| Implementation | `claude-opus-5`, `low` | `gpt-5.6-luna`, `xhigh` |
+
+Respect any model or effort the user names. Pass the choices explicitly:
+
+```sh
+python3 "$PLUGIN_ROOT/scripts/cross_model.py" \
+  --request "$HANDOFF/request.json" --output-dir "$HANDOFF/custom-call" \
+  --model "$MODEL_ID" --effort "$EFFORT"
+```
+
+The helper accepts any model ID or alias supported by the target CLI and account.
+There is no model whitelist. With `--model` alone, it omits effort so the chosen model
+can use its own default. With `--effort` alone, it keeps the workflow's default model.
+Use `--effort default` to omit the effort setting even with a default model. Explicit
+effort values pass through unchanged; the target CLI validates compatibility.
+Claude receives `--effort LEVEL`; Codex receives `-c model_reasoning_effort="LEVEL"`.
+The final arguments are saved in `command.json`, including defaults and overrides.
+
+Keep the same selected peer model and effort throughout one consensus run unless
+the user changes them. Record an authorized change in the decision artifact. Do not
+silently substitute another model after availability or authentication errors.
+`clear-writing` runs in the calling host and does not start another model.
+
+Model IDs and effort controls were checked against the official
+[Opus 5 documentation](https://platform.claude.com/docs/en/models/opus-5/whats-new-opus-5),
+[Terra documentation](https://developers.openai.com/api/docs/models/gpt-5.6-terra),
+[Luna documentation](https://developers.openai.com/api/docs/models/gpt-5.6-luna),
+[Claude CLI reference](https://code.claude.com/docs/en/cli-reference), and
+[Codex configuration reference](https://developers.openai.com/codex/config-reference).
 
 ## Claude Code target
 
@@ -54,7 +91,7 @@ uses the normal Codex credentials. Project instructions remain applicable.
 
 The helper uses `--output-schema` and `--output-last-message`, with an ephemeral
 session. It disables inherited shell execution rules so old allow rules cannot
-widen the sandbox. It does not assume a model name or use a permission bypass.
+widen the sandbox. Workflow defaults remain overridable without changing permissions.
 
 ## Failure handling
 
