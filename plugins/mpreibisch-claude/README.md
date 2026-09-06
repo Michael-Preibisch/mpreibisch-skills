@@ -8,7 +8,7 @@ implementation. `clear-writing` provides the same writing rules as the Codex pac
 From the root of your clone of `mpreibisch-skills`, run:
 
 ```sh
-claude plugin marketplace add .
+claude plugin marketplace add ./
 claude plugin install mpreibisch-claude@mpreibisch-skills --scope user
 codex login
 ```

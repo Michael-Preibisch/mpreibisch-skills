@@ -59,7 +59,7 @@ codex plugin add mpreibisch-codex@mpreibisch-skills
 Install the Claude Code plugin from the same directory:
 
 ```sh
-claude plugin marketplace add .
+claude plugin marketplace add ./
 claude plugin install mpreibisch-claude@mpreibisch-skills --scope user
 ```
 
