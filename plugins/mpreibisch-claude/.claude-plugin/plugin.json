@@ -1,7 +1,7 @@
 {
   "name": "mpreibisch-claude",
-  "version": "1.1.0",
-  "description": "Cross-model consensus, review, exploration, implementation, and clear writing.",
+  "version": "1.2.0",
+  "description": "Cross-model consensus, review, exploration, implementation, clear writing, and HTML artifact standards.",
   "author": {
     "name": "mpreibisch-skills contributors"
   },

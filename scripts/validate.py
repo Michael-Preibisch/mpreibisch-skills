@@ -12,7 +12,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 CODEX = ROOT / "plugins/mpreibisch-codex"
 CLAUDE = ROOT / "plugins/mpreibisch-claude"
-SKILLS = {"consensus", "adversarial-review", "delegate-explore", "delegate-implement", "clear-writing"}
+CROSS_MODEL_SKILLS = {"consensus", "adversarial-review", "delegate-explore", "delegate-implement"}
+SKILLS = CROSS_MODEL_SKILLS | {"clear-writing", "artifact-standards"}
 
 
 def load_runner():
@@ -61,7 +62,7 @@ def main():
             require(len(frontmatter) == 3 and not frontmatter[0], f"missing frontmatter: {skill}")
             require(f"name: {name}\n" in frontmatter[1], f"wrong skill name: {skill}")
             require(re.search(r"^description: .+", frontmatter[1], re.M), f"missing description: {skill}")
-            if name != "clear-writing":
+            if name in CROSS_MODEL_SKILLS:
                 for context in ("broader", "motivations", "constraints", "decision rationale", "intended outcome"):
                     require(context in content.replace("\n", " "), f"missing context requirement: {skill}: {context}")
         imported = plugin / "skills/clear-writing"
@@ -109,9 +110,10 @@ def main():
     for path in ROOT.rglob("*"):
         if not path.is_file() or any(part in {".git", "__pycache__", ".venv"} for part in path.relative_to(ROOT).parts):
             continue
-        if path.suffix in {".md", ".py", ".json", ".mjs"}:
+        if path.suffix in {".md", ".py", ".json", ".mjs", ".html"}:
             require(not machine_path.search(path.read_text(encoding="utf-8")), f"machine-specific path: {path}")
-    print("Both manifests, marketplaces, five skills per host, package parity, links, portability, and upstream hashes passed.")
+    print(f"Both manifests, marketplaces, {len(SKILLS)} skills per host, package parity, "
+          "links, portability, and upstream hashes passed.")
 
 
 if __name__ == "__main__":

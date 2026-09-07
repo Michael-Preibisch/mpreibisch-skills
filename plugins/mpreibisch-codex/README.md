@@ -1,7 +1,8 @@
 # Mpreibisch skills for Codex
 
 Codex calls Claude Code for consensus, adversarial review, exploration, and scoped
-implementation. `clear-writing` provides the same writing rules as the Claude package.
+implementation. `clear-writing` provides the same writing rules as the Claude package,
+and `artifact-standards` the same HTML page standards.
 
 ## Install and authenticate
 
@@ -54,6 +55,9 @@ $delegate-implement Have Claude implement the agreed validation change in src/in
 and tests/input. Preserve the public API and meet the acceptance criteria above.
 
 $clear-writing Rewrite this README for clarity while preserving its meaning.
+
+$artifact-standards Build a shareable HTML page explaining how our retry path works,
+for a teammate with no context on this service.
 ```
 
 The main agent fills the required context from the conversation before calling
@@ -61,6 +65,12 @@ Claude. See [the handoff protocol](bridge/protocol.md),
 [request template](bridge/request.example.json), and [CLI guide](bridge/cli.md).
 Read-only skills expose only Claude's file-reading tools. Implementation adds scoped
 edits and explicitly listed verification commands. No remote actions are enabled.
+
+`artifact-standards` starts no cross-model call and needs no `claude` CLI. It writes
+one self-contained HTML file outside every repository worktree and hands you the file,
+because Codex has no page publisher. It never starts a preview server or installs one.
+Its page shell and design guidance ship inside `skills/artifact-standards`, so it does
+not depend on any host design skill.
 
 For maintenance or offline checks, use the validation instructions in the repository
 README. The imported writing references, output style, and optional hook script are

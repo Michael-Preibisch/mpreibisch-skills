@@ -1,7 +1,8 @@
 # Mpreibisch skills for Claude Code
 
 Claude Code calls Codex for consensus, adversarial review, exploration, and scoped
-implementation. `clear-writing` provides the same writing rules as the Codex package.
+implementation. `clear-writing` provides the same writing rules as the Codex package,
+and `artifact-standards` the same HTML page standards.
 
 ## Install and authenticate
 
@@ -57,6 +58,9 @@ tests/checkout. We need an idempotency boundary. Return a call-path map with evi
 in src/input and tests/input. Preserve the API and meet the acceptance criteria above.
 
 /mpreibisch-claude:clear-writing Rewrite this README without changing its meaning.
+
+/mpreibisch-claude:artifact-standards Build a shareable HTML page explaining how our
+retry path works, for a teammate with no context on this service.
 ```
 
 The main agent fills the broader context before calling Codex. See
@@ -64,6 +68,13 @@ The main agent fills the broader context before calling Codex. See
 and [CLI guide](bridge/cli.md). Read-only calls use Codex's read-only sandbox.
 Implementation uses workspace-write with network access disabled. The caller checks
 the exact file scope and acceptance criteria before accepting the changes.
+
+`artifact-standards` starts no cross-model call and needs no `codex` CLI. It writes
+one self-contained HTML file outside every repository worktree, then publishes it with
+the `Artifact` tool when your request or standing authorization permits publishing;
+otherwise it hands you the local file. Its page shell and design guidance ship inside
+`skills/artifact-standards`, so it works whether or not the host's own artifact design
+skills are loaded.
 
 The writing references, output style, and optional hook script remain under
 `skills/clear-writing`. They are preserved without activating global hooks or styles.

@@ -1,0 +1,218 @@
+<title>Page name</title>
+<style>
+/* House palette. Light is the default; dark only on explicit choice. */
+:root {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --border: #d3dae2;
+  --border-strong: #a8b4c2;
+  --text: #16202b;
+  --text-soft: #33414f;
+  --muted: #5b6b7c;
+  --accent: #245f9f;
+  --accent-soft: rgba(36, 95, 159, 0.10);
+  --accent-2: #1c7a72;
+  --accent-3: #8a4f8f;
+  --good: #287649;
+  --warn: #8a5a00;
+  --bad: #a32f34;
+  --shadow: 0 10px 24px rgba(40, 55, 72, 0.09);
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e1116;
+  --surface: #161b22;
+  --surface-2: #1d232c;
+  --border: #2c343f;
+  --border-strong: #46515f;
+  --text: #e8edf3;
+  --text-soft: #c3ccd7;
+  --muted: #8d9aa8;
+  --accent: #74b3f0;
+  --accent-soft: rgba(116, 179, 240, 0.14);
+  --accent-2: #5cc9be;
+  --accent-3: #c79ccc;
+  --good: #63c98b;
+  --warn: #e0b063;
+  --bad: #ef8a8f;
+  --shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--sans); }
+code, pre { font-family: var(--mono); font-size: 0.9em; }
+
+/* One column by default; two when the sidebar is present. */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.5rem;
+  max-width: 1220px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+.layout:has(> .side) { grid-template-columns: 232px minmax(0, 1fr); }
+
+.side { position: sticky; top: 2rem; align-self: start; }
+.side h2 { margin: 0 0 0.6rem; font-size: 0.72rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); }
+.side a { display: block; padding: 0.34rem 0.6rem; border-left: 2px solid var(--border);
+  color: var(--text-soft); text-decoration: none; font-size: 0.9rem; }
+.side a:hover { color: var(--text); border-left-color: var(--border-strong); }
+.side a.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+
+.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+h1 { margin: 0 0 0.3rem; font-size: 1.9rem; line-height: 1.2; letter-spacing: -0.01em; }
+.subtitle { margin: 0; color: var(--muted); font-size: 1.02rem; }
+.asof { margin: 0.9rem 0 0; padding: 0.5rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--muted); font-size: 0.82rem; }
+.theme-toggle { flex: none; margin-top: 0.3rem; display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.35rem 0.7rem; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text-soft); font: inherit; font-size: 0.82rem; cursor: pointer; }
+.theme-toggle:hover { border-color: var(--border-strong); color: var(--text); }
+
+/* Answer box: the bottom line, above everything else. */
+.answer { margin: 1.6rem 0 2rem; padding: 1rem 1.15rem; background: var(--surface);
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); box-shadow: var(--shadow); }
+.answer p { margin: 0; font-size: 1.06rem; color: var(--text); }
+.answer p + p { margin-top: 0.5rem; }
+
+section { margin: 2.5rem 0 0; scroll-margin-top: 1.5rem; }
+section h2 { margin: 0 0 0.7rem; font-size: 1.24rem; }
+.card { padding: 1.1rem 1.25rem; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); }
+.scroll-x { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.94rem; }
+th, td { padding: 0.5rem 0.7rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; }
+dl.terms { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.5rem 1.25rem; }
+dl.terms dt { font-weight: 600; color: var(--text); }
+dl.terms dd { margin: 0; color: var(--text-soft); }
+details { border: 1px solid var(--border); border-radius: var(--radius); padding: 0.7rem 1rem;
+  background: var(--surface); }
+details + details { margin-top: 0.6rem; }
+summary { cursor: pointer; color: var(--text-soft); font-weight: 600; }
+svg text { fill: var(--text-soft); font-family: var(--sans); }
+a { color: var(--accent); }
+ul.sources { margin: 0; padding-left: 1.2rem; color: var(--text-soft); }
+ul.sources li + li { margin-top: 0.3rem; }
+
+@media (max-width: 900px) {
+  .layout, .layout:has(> .side) { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; padding: 1.25rem 1rem 4rem; }
+  .side { position: static; }
+  .side nav { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .side a { border-left: 0; border: 1px solid var(--border); border-radius: 999px; }
+  .side a.active { border-color: var(--accent); }
+  dl.terms { grid-template-columns: minmax(0, 1fr); }
+  dl.terms dd { margin-bottom: 0.4rem; }
+}
+</style>
+
+<script>
+/* Pre-paint: light unless this viewer chose dark here before. */
+(function () {
+  var theme = "light";
+  try { if (localStorage.getItem("artifact-theme") === "dark") theme = "dark"; } catch (error) {}
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+
+<div class="layout">
+  <!-- Section navigation, only when the user asks for it. Uncomment to enable.
+  <aside class="side">
+    <h2>Sections</h2>
+    <nav id="toc">
+      <a href="#terms">Terms</a>
+      <a href="#one">First section</a>
+      <a href="#two">Second section</a>
+    </nav>
+  </aside>
+  -->
+
+  <main>
+    <div class="head">
+      <div>
+        <h1>Page name</h1>
+        <p class="subtitle">One line saying what this is, for someone landing cold.</p>
+        <p class="asof">As of 2 September 2026 · Author Name (author@example.com) with HOST AGENT NAME</p>
+      </div>
+      <button class="theme-toggle" type="button" id="themeToggle" aria-live="polite">Theme: light</button>
+    </div>
+
+    <div class="answer">
+      <p>The bottom line, in one to three lines. The reader gets the point here.</p>
+    </div>
+
+    <!-- Explainers only: define the concepts the page depends on, before using them. -->
+    <section id="terms">
+      <h2>Terms</h2>
+      <div class="card">
+        <dl class="terms">
+          <dt>Term</dt><dd>One or two plain sentences.</dd>
+          <dt>Another term</dt><dd>One or two plain sentences.</dd>
+        </dl>
+      </div>
+    </section>
+
+    <!-- The visual goes here: diagram, chart, or table. -->
+
+    <section id="one">
+      <h2>First section</h2>
+      <div class="card">Content.</div>
+    </section>
+
+    <section id="two">
+      <h2>Second section</h2>
+      <div class="card">Content.</div>
+    </section>
+
+    <section id="sources">
+      <h2>Sources</h2>
+      <ul class="sources">
+        <li><a href="https://linear.app/...">RES-0000: ticket title</a></li>
+        <li><a href="https://github.com/...">PR title</a></li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<script>
+/* Theme toggle: light or dark. */
+(function () {
+  var KEY = "artifact-theme";
+  var button = document.getElementById("themeToggle");
+  if (!button) return;
+  var current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  var render = function () {
+    document.documentElement.setAttribute("data-theme", current);
+    button.textContent = "Theme: " + current;
+    document.dispatchEvent(new CustomEvent("themechange", { detail: current }));
+  };
+  button.addEventListener("click", function () {
+    current = current === "dark" ? "light" : "dark";
+    try {
+      if (current === "dark") localStorage.setItem(KEY, "dark");
+      else localStorage.removeItem(KEY);
+    } catch (error) {}
+    render();
+  });
+  render();
+})();
+
+/* Sidebar highlights the section in view. */
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll("#toc a"));
+  var sections = links
+    .map(function (a) { return document.querySelector(a.getAttribute("href")); })
+    .filter(Boolean);
+  if (!sections.length || !window.IntersectionObserver) return;
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (!entry.isIntersecting) return;
+      links.forEach(function (a) {
+        a.classList.toggle("active", a.getAttribute("href") === "#" + entry.target.id);
+      });
+    });
+  }, { rootMargin: "-20% 0px -70% 0px" });
+  sections.forEach(function (s) { observer.observe(s); });
+})();
+</script>

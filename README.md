@@ -1,13 +1,22 @@
 # Personal cross-model skills
 
 Two installable plugins pair Codex and Claude Code through their CLIs. Each includes
-`consensus`, `adversarial-review`, `delegate-explore`, `delegate-implement`, and the
-pinned `clear-writing` skill.
+`consensus`, `adversarial-review`, `delegate-explore`, `delegate-implement`, the
+pinned `clear-writing` skill, and `artifact-standards`.
 
 | Calling host | Plugin | Receiving CLI | Installation |
 | --- | --- | --- | --- |
 | Codex | `mpreibisch-codex` | `claude` | [Codex README](plugins/mpreibisch-codex/README.md) |
 | Claude Code | `mpreibisch-claude` | `codex` | [Claude Code README](plugins/mpreibisch-claude/README.md) |
+
+`artifact-standards` is the one skill that starts no cross-model call. It holds the
+house standards for every shareable HTML page: page shape, palette, a light-first
+theme contract with an in-page toggle, the writing gates, terms-first for explainers,
+source links, and a pre-publish checklist. It ships a page shell and design guidance
+inside the skill, so it needs no host design skill. Delivery adapts to the host: the
+agent always writes one self-contained HTML file outside every repository worktree,
+then publishes it if the host has a publisher and the user authorized publishing, or
+hands back the local file if it does not.
 
 Every cross-model request carries the broader goal, motivations, constraints,
 decision rationale, intended outcome, scope, and expected output. The runner rejects
@@ -26,7 +35,7 @@ Python 3.10+ is the only helper dependency.
 
 | Path | Contents |
 | --- | --- |
-| `plugins/mpreibisch-codex/` | Codex plugin, five skills, shared bridge, and Claude CLI adapter |
+| `plugins/mpreibisch-codex/` | Codex plugin, six skills, shared bridge, and Claude CLI adapter |
 | `plugins/mpreibisch-claude/` | Claude Code plugin, matching skills, shared bridge, and Codex CLI adapter |
 | `.agents/plugins/marketplace.json` | Codex marketplace manifest |
 | `.claude-plugin/marketplace.json` | Claude Code marketplace manifest |
@@ -64,8 +73,9 @@ claude plugin install mpreibisch-claude@mpreibisch-skills --scope user
 ```
 
 Start a new session in each host. In Codex, invoke `$consensus`, `$adversarial-review`,
-`$delegate-explore`, `$delegate-implement`, or `$clear-writing`. In Claude Code, use
-`/mpreibisch-claude:consensus` and the corresponding namespaced skill names.
+`$delegate-explore`, `$delegate-implement`, `$clear-writing`, or `$artifact-standards`.
+In Claude Code, use `/mpreibisch-claude:consensus` and the corresponding namespaced
+skill names.
 The host READMEs above include examples. Repeat installation on each machine;
 relative marketplace paths let the clone live anywhere. A private repository requires
 GitHub access to clone. Installing a plugin does not authenticate the receiving CLI.
@@ -80,7 +90,8 @@ The defaults apply to the receiving agent in each cross-model call:
 | Implementation | Opus 5 (`claude-opus-5`), low | Luna (`gpt-5.6-luna`), xhigh |
 
 All models and aliases supported by the receiving CLI and your account remain
-available. Ask the calling agent to use a specific model and effort, or pass
+available. `artifact-standards` uses the calling agent's model and starts no call.
+Ask the calling agent to use a specific model and effort, or pass
 `--model MODEL_ID --effort LEVEL` to the helper. With only `--model`, the helper omits
 effort so the selected model can use its own default. With only `--effort`, it keeps
 the workflow's default model. `--effort default` also omits the effort setting.
@@ -103,6 +114,8 @@ claude plugin validate --strict .claude-plugin/marketplace.json
 
 The Python checks need no authenticated CLI or network. They validate both manifests
 against bundled schemas, package parity, skill references, and upstream file hashes.
+The delegation-context rule applies only to the four cross-model skills; `clear-writing`
+and `artifact-standards` are exempt because they start no handoff.
 Tests use stub CLIs to check permissions, context delivery, JSON extraction, failure
 handling, and round bounds without spending model tokens. Claude's own validator
 provides an additional host check when installed. The Codex package was also checked
