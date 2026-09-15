@@ -2,14 +2,19 @@
 
 Two installable plugins pair Codex and Claude Code through their CLIs. Each includes
 `consensus`, `adversarial-review`, `delegate-explore`, `delegate-implement`, the
-pinned `clear-writing` skill, and `artifact-standards`.
+pinned `clear-writing` skill, `artifact-standards`, and `pr-review-ask`.
 
 | Calling host | Plugin | Receiving CLI | Installation |
 | --- | --- | --- | --- |
 | Codex | `mpreibisch-codex` | `claude` | [Codex README](plugins/mpreibisch-codex/README.md) |
 | Claude Code | `mpreibisch-claude` | `codex` | [Claude Code README](plugins/mpreibisch-claude/README.md) |
 
-`artifact-standards` is the one skill that starts no cross-model call. It holds the
+`pr-review-ask` drafts a Slack message that asks for reviews of one or more GitHub
+PRs in the user's own voice: motivation first, one line per PR, stacks kept visible,
+Linear issues linked. It fetches PR facts with `gh`, shows the draft in chat, and saves
+it as a Slack draft when the host has a Slack tool. It never sends.
+
+`artifact-standards` starts no cross-model call. It holds the
 house standards for every shareable HTML page: page shape, palette, a light-first
 theme contract with an in-page toggle, the writing gates, terms-first for explainers,
 source links, and a pre-publish checklist. It ships a page shell and design guidance
@@ -35,7 +40,7 @@ Python 3.10+ is the only helper dependency.
 
 | Path | Contents |
 | --- | --- |
-| `plugins/mpreibisch-codex/` | Codex plugin, six skills, shared bridge, and Claude CLI adapter |
+| `plugins/mpreibisch-codex/` | Codex plugin, seven skills, shared bridge, and Claude CLI adapter |
 | `plugins/mpreibisch-claude/` | Claude Code plugin, matching skills, shared bridge, and Codex CLI adapter |
 | `.agents/plugins/marketplace.json` | Codex marketplace manifest |
 | `.claude-plugin/marketplace.json` | Claude Code marketplace manifest |
@@ -73,7 +78,8 @@ claude plugin install mpreibisch-claude@mpreibisch-skills --scope user
 ```
 
 Start a new session in each host. In Codex, invoke `$consensus`, `$adversarial-review`,
-`$delegate-explore`, `$delegate-implement`, `$clear-writing`, or `$artifact-standards`.
+`$delegate-explore`, `$delegate-implement`, `$clear-writing`, `$artifact-standards`, or
+`$pr-review-ask`.
 In Claude Code, use `/mpreibisch-claude:consensus` and the corresponding namespaced
 skill names.
 The host READMEs above include examples. Repeat installation on each machine;
@@ -90,7 +96,8 @@ The defaults apply to the receiving agent in each cross-model call:
 | Implementation | Opus 5 (`claude-opus-5`), low | Luna (`gpt-5.6-luna`), xhigh |
 
 All models and aliases supported by the receiving CLI and your account remain
-available. `artifact-standards` uses the calling agent's model and starts no call.
+available. `artifact-standards` and `pr-review-ask` use the calling agent's model and
+start no call.
 Ask the calling agent to use a specific model and effort, or pass
 `--model MODEL_ID --effort LEVEL` to the helper. With only `--model`, the helper omits
 effort so the selected model can use its own default. With only `--effort`, it keeps
@@ -114,8 +121,8 @@ claude plugin validate --strict .claude-plugin/marketplace.json
 
 The Python checks need no authenticated CLI or network. They validate both manifests
 against bundled schemas, package parity, skill references, and upstream file hashes.
-The delegation-context rule applies only to the four cross-model skills; `clear-writing`
-and `artifact-standards` are exempt because they start no handoff.
+The delegation-context rule applies only to the four cross-model skills; `clear-writing`,
+`artifact-standards`, and `pr-review-ask` are exempt because they start no handoff.
 Tests use stub CLIs to check permissions, context delivery, JSON extraction, failure
 handling, and round bounds without spending model tokens. Claude's own validator
 provides an additional host check when installed. The Codex package was also checked
