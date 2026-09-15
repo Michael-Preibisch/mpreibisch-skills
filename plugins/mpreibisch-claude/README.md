@@ -2,7 +2,8 @@
 
 Claude Code calls Codex for consensus, adversarial review, exploration, and scoped
 implementation. `clear-writing` provides the same writing rules as the Codex package,
-and `artifact-standards` the same HTML page standards.
+`artifact-standards` the same HTML page standards, and `pr-review-ask` the same Slack
+review-ask format.
 
 ## Install and authenticate
 
@@ -61,6 +62,9 @@ in src/input and tests/input. Preserve the API and meet the acceptance criteria 
 
 /mpreibisch-claude:artifact-standards Build a shareable HTML page explaining how our
 retry path works, for a teammate with no context on this service.
+
+/mpreibisch-claude:pr-review-ask Ask #eng-platform to review #4312 and #4315. They
+fix the retry budget; #4315 is stacked on #4312. Tag Ana on the second one.
 ```
 
 The main agent fills the broader context before calling Codex. See
@@ -75,6 +79,11 @@ the `Artifact` tool when your request or standing authorization permits publishi
 otherwise it hands you the local file. Its page shell and design guidance ship inside
 `skills/artifact-standards`, so it works whether or not the host's own artifact design
 skills are loaded.
+
+`pr-review-ask` needs an authenticated `gh` and, for the Slack draft, the Slack
+connector. It shows the draft in chat, then creates it with the connector's draft tool
+in the channel or DM you name. It never sends; you send from Slack. Without the
+connector it hands you a paste-ready text.
 
 The writing references, output style, and optional hook script remain under
 `skills/clear-writing`. They are preserved without activating global hooks or styles.

@@ -7,10 +7,10 @@
     {
       "name": "mpreibisch-claude",
       "source": "./plugins/mpreibisch-claude",
-      "description": "Cross-model collaboration with Codex, clear-writing, and HTML artifact standards."
+      "description": "Cross-model collaboration with Codex, clear-writing, HTML artifact standards, and Slack PR review asks."
     }
   ],
   "metadata": {
-    "description": "Personal cross-model collaboration, clear-writing, and HTML artifact standards for Claude Code."
+    "description": "Personal cross-model collaboration, clear-writing, HTML artifact standards, and Slack PR review asks for Claude Code."
   }
 }

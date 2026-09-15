@@ -2,7 +2,8 @@
 
 Codex calls Claude Code for consensus, adversarial review, exploration, and scoped
 implementation. `clear-writing` provides the same writing rules as the Claude package,
-and `artifact-standards` the same HTML page standards.
+`artifact-standards` the same HTML page standards, and `pr-review-ask` the same Slack
+review-ask format.
 
 ## Install and authenticate
 
@@ -58,6 +59,9 @@ $clear-writing Rewrite this README for clarity while preserving its meaning.
 
 $artifact-standards Build a shareable HTML page explaining how our retry path works,
 for a teammate with no context on this service.
+
+$pr-review-ask Ask #eng-platform to review #4312 and #4315. They fix the retry
+budget; #4315 is stacked on #4312. Tag Ana on the second one.
 ```
 
 The main agent fills the required context from the conversation before calling
@@ -71,6 +75,10 @@ one self-contained HTML file outside every repository worktree and hands you the
 because Codex has no page publisher. It never starts a preview server or installs one.
 Its page shell and design guidance ship inside `skills/artifact-standards`, so it does
 not depend on any host design skill.
+
+`pr-review-ask` needs an authenticated `gh`. Codex has no Slack tool by default, so
+the skill hands you a paste-ready text; if a Slack MCP server with a draft tool is
+configured, it saves the draft there instead. It never sends.
 
 For maintenance or offline checks, use the validation instructions in the repository
 README. The imported writing references, output style, and optional hook script are
