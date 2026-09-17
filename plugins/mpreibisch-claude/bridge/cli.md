@@ -120,10 +120,18 @@ final progress sample. Authentication failures have separate preflight reasons.
 Inspect these private local artifacts before deciding whether another call is needed.
 Never treat a partial response as a completed review or retry automatically.
 
-The runner reuses standard-library `Popen.communicate` timeout retries with a
-monotonic deadline. Python documents that retrying communication after a timeout
-preserves pending data; no streaming parser or third-party process library is needed.
-See the [Python subprocess documentation](https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate)
+The runner supplies the complete UTF-8 prompt through a secure, seekable
+`TemporaryFile` as stdin. The context manager closes and deletes it after the child
+exits or the call fails. Progress checks use `Popen.wait` with a monotonic deadline;
+they do not interrupt prompt delivery. Stdout and stderr go directly to diagnostic
+files, so no pipe writer or output-draining thread is required.
+
+A real subprocess regression delays reading until after the first progress check,
+then verifies receipt of a prompt larger than 128 KiB. This covers a failure in the
+previous pipe transport: retrying `communicate` with no input after a partial write
+could leave the remaining prompt unsent. See the
+[Python temporary-file documentation](https://docs.python.org/3/library/tempfile.html#tempfile.TemporaryFile)
+and [subprocess wait documentation](https://docs.python.org/3/library/subprocess.html#subprocess.Popen.wait)
 (checked 2026-09-16).
 
 On unsupported flags, authentication failure, denied tools, invalid JSON, timeout,

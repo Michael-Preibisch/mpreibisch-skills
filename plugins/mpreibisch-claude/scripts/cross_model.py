@@ -10,6 +10,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 
@@ -197,7 +198,7 @@ def preflight_claude(workspace, output):
     raise ValueError(f"{reason}; check Claude authentication locally before retrying")
 
 
-def communicate_with_progress(process, prompt, output, timeout):
+def wait_with_progress(process, output, timeout):
     """Observe saved output sizes without reading or echoing their contents."""
     started = time.monotonic()
     sizes = {name: 0 for name in ("stdout.txt", "stderr.txt", "raw-response.json")}
@@ -231,12 +232,10 @@ def communicate_with_progress(process, prompt, output, timeout):
             if remaining <= 0:
                 raise subprocess.TimeoutExpired(process.args, timeout)
             try:
-                process.communicate(prompt, timeout=min(PROGRESS_INTERVAL, remaining))
+                process.wait(timeout=min(PROGRESS_INTERVAL, remaining))
                 report("exited")
                 return
             except subprocess.TimeoutExpired:
-                # communicate retains pending stdin across timeout retries.
-                prompt = None
                 if time.monotonic() - started >= timeout:
                     raise
                 report("running")
@@ -310,11 +309,16 @@ def run(args):
         "Complete handoff request:\n" + json.dumps(request, indent=2),
     ])
     # Files remain private even if the caller's default umask permits other readers.
-    with (output / "stdout.txt").open("w") as stdout, (output / "stderr.txt").open("w") as stderr:
-        process = subprocess.Popen(command, cwd=workspace, stdin=subprocess.PIPE,
+    with (tempfile.TemporaryFile(dir=output) as prompt_file,
+          (output / "stdout.txt").open("w") as stdout,
+          (output / "stderr.txt").open("w") as stderr):
+        # A seekable stdin avoids partial pipe writes across progress timeouts.
+        prompt_file.write(prompt.encode("utf-8"))
+        prompt_file.seek(0)
+        process = subprocess.Popen(command, cwd=workspace, stdin=prompt_file,
                                    stdout=stdout, stderr=stderr, text=True,
                                    start_new_session=True)
-        communicate_with_progress(process, prompt, output, args.timeout)
+        wait_with_progress(process, output, args.timeout)
     if process.returncode:
         write_json(output / "failure.json", {"status": "incomplete", "reason": "cli_exit",
                                              "returncode": process.returncode})

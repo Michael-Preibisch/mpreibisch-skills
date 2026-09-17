@@ -290,22 +290,64 @@ class HandoffTests(unittest.TestCase):
                 self.assertEqual(call.call_args.kwargs["stderr"], subprocess.DEVNULL)
                 self.assertEqual(runner.read_json(self.root / "failure.json")["reason"], reason)
 
-    def test_progress_tracks_output_without_echoing_it_and_preserves_prompt(self):
+    def test_large_prompt_reaches_delayed_reader_after_progress_interval(self):
+        self.request["context"]["broader_goal"] = "Large handoff: " + "x" * (256 * 1024)
+        request_file = self.root / "large-request.json"
+        runner.write_json(request_file, self.request)
+        output = self.root / "delayed-reader"
+        received = self.root / "received-prompt.bin"
+        child = """import json, sys, time
+from pathlib import Path
+progress = Path(sys.argv[1]) / 'progress.json'
+while not progress.exists():
+    time.sleep(0.005)
+Path(sys.argv[2]).write_bytes(sys.stdin.buffer.read())
+print(sys.argv[3])
+"""
+        command = [sys.executable, "-c", child, str(output), str(received),
+                   json.dumps({"is_error": False, "structured_output": self.response})]
+        real_popen = subprocess.Popen
+        prompt_files = []
+        intended_prompts = []
+
+        def start_child(*args, **kwargs):
+            prompt_file = kwargs["stdin"]
+            prompt_files.append(prompt_file)
+            intended_prompts.append(prompt_file.read())
+            prompt_file.seek(0)
+            return real_popen(*args, **kwargs)
+
+        args = Mock(request=request_file, output_dir=output, model=None, effort=None,
+                    dry_run=False, timeout=5)
+        with patch.object(runner, "preflight_claude"), \
+                patch.object(runner, "build_command", return_value=command), \
+                patch.object(runner, "PROGRESS_INTERVAL", 0.02), \
+                patch.object(runner.subprocess, "Popen", side_effect=start_child), \
+                patch.object(runner, "print") as log:
+            self.assertEqual(runner.run(args), 0)
+        self.assertGreater(len(intended_prompts[0]), 128 * 1024)
+        self.assertEqual(received.read_bytes(), intended_prompts[0])
+        self.assertIn("working silently", str(log.call_args_list))
+        self.assertTrue(prompt_files[0].closed)
+        self.assertEqual(runner.read_json(output / "progress.json")["status"], "exited")
+        self.assertEqual(runner.read_json(output / "response.json"), self.response)
+
+    def test_progress_tracks_output_without_echoing_it(self):
         process = Mock(args=["stub"], returncode=0)
         elapsed = [0]
         calls = []
 
-        def communicate(prompt, timeout):
-            calls.append((prompt, timeout))
+        def wait(timeout):
+            calls.append(timeout)
             elapsed[0] += timeout
             if len(calls) == 1:
                 raise subprocess.TimeoutExpired("stub", timeout)
             (self.root / "stderr.txt").write_text("private diagnostic")
 
-        process.communicate.side_effect = communicate
+        process.wait.side_effect = wait
         with patch.object(runner.time, "monotonic", side_effect=lambda: elapsed[0]), patch.object(runner, "print") as log:
-            runner.communicate_with_progress(process, "full prompt", self.root, 90)
-        self.assertEqual(calls, [("full prompt", 30), (None, 30)])
+            runner.wait_with_progress(process, self.root, 90)
+        self.assertEqual(calls, [30, 30])
         self.assertIn("working silently", str(log.call_args_list))
         self.assertNotIn("private diagnostic", str(log.call_args_list))
         progress = runner.read_json(self.root / "progress.json")
@@ -320,17 +362,17 @@ class HandoffTests(unittest.TestCase):
             process = Mock(args=["stub"])
             elapsed = [0]
 
-            def communicate(prompt, timeout):
+            def wait(timeout):
                 elapsed[0] += timeout
                 if active:
                     (output / "stdout.txt").write_text("partial output")
                 raise subprocess.TimeoutExpired("stub", timeout)
 
-            process.communicate.side_effect = communicate
+            process.wait.side_effect = wait
             with self.subTest(active=active), patch.object(runner.time, "monotonic", side_effect=lambda: elapsed[0]), \
                     patch.object(runner, "stop_process") as stop, patch.object(runner, "print"):
                 with self.assertRaisesRegex(ValueError, r"configured timeout \(10s\)"):
-                    runner.communicate_with_progress(process, "prompt", output, 10)
+                    runner.wait_with_progress(process, output, 10)
                 stop.assert_called_once_with(process)
             failure = runner.read_json(output / "failure.json")
             self.assertEqual(failure["reason"], "timeout")
@@ -341,10 +383,10 @@ class HandoffTests(unittest.TestCase):
 
     def test_interruption_is_distinct_from_timeout(self):
         process = Mock(args=["stub"])
-        process.communicate.side_effect = KeyboardInterrupt
+        process.wait.side_effect = KeyboardInterrupt
         with patch.object(runner, "stop_process") as stop, patch.object(runner, "print"):
             with self.assertRaises(KeyboardInterrupt):
-                runner.communicate_with_progress(process, "prompt", self.root, 10)
+                runner.wait_with_progress(process, self.root, 10)
             stop.assert_called_once_with(process)
         self.assertEqual(runner.read_json(self.root / "failure.json")["reason"], "interrupted")
 
