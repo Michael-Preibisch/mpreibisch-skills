@@ -26,6 +26,11 @@ Register the clone's root on each machine. If you move the clone, register its n
 location. This marketplace is named `mpreibisch-skills`; it does not depend on a
 pre-existing personal marketplace. Installation copies a self-contained package.
 
+The runner checks Claude authentication before dispatch without recording account
+details. Calls report output activity every 30 seconds and preserve timeout diagnostics.
+Quiet output does not establish a hung process. See
+[progress and failure handling](bridge/cli.md#progress-and-failure-handling).
+
 ## Models
 
 Claude defaults to Opus 5 (`claude-opus-5`) at high effort for consensus, review, and

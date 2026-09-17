@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -214,6 +215,9 @@ class HandoffTests(unittest.TestCase):
         response = {**self.response, "status": status}
         stub.write_text("#!" + sys.executable + "\n" +
             "import json,sys,time\nfrom pathlib import Path\n" +
+            "if sys.argv[1:3] == ['auth', 'status']:\n" +
+            "    print('private-auth-identity')\n" +
+            "    sys.exit(" + ("1" if behavior == "auth_failure" else "0") + ")\n" +
             "prompt=sys.stdin.read()\n" +
             "Path(" + repr(str(self.root / "received.txt")) + ").write_text(prompt)\n" +
             ("time.sleep(30)\n" if behavior == "timeout" else "") +
@@ -244,6 +248,11 @@ class HandoffTests(unittest.TestCase):
                 for value in self.request["context"].values():
                     self.assertIn(value, received)
                 self.assertEqual(output.stat().st_mode & 0o077, 0)
+                if host == "codex":
+                    self.assertEqual(runner.read_json(output / "preflight.json"), {"status": "passed"})
+                self.assertNotIn("private-auth-identity", result.stdout + result.stderr)
+                for path in output.iterdir():
+                    self.assertNotIn("private-auth-identity", path.read_text())
 
     def test_cli_failures_never_produce_success(self):
         for behavior in ("exit", "malformed", "cli_error"):
@@ -261,6 +270,125 @@ class HandoffTests(unittest.TestCase):
         result, output = self.invoke_stub("codex", "timeout", timeout=1)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(runner.read_json(output / "failure.json")["status"], "incomplete")
+
+    def test_auth_failure_stops_before_model_dispatch_and_discards_identity(self):
+        result, output = self.invoke_stub("codex", "auth_failure")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.root / "received.txt").exists())
+        self.assertEqual(runner.read_json(output / "failure.json")["reason"], "auth_preflight_failed")
+        self.assertNotIn("private-auth-identity", result.stdout + result.stderr)
+        for path in output.iterdir():
+            self.assertNotIn("private-auth-identity", path.read_text())
+
+    def test_preflight_timeout_and_missing_cli_fail_closed(self):
+        for error, reason in ((subprocess.TimeoutExpired("claude", 30), "auth_preflight_timeout"),
+                              (FileNotFoundError("secret details"), "auth_preflight_unavailable")):
+            with self.subTest(reason=reason), patch.object(runner.subprocess, "run", side_effect=error) as call:
+                with self.assertRaisesRegex(ValueError, reason):
+                    runner.preflight_claude(self.workspace, self.root)
+                self.assertEqual(call.call_args.kwargs["stdout"], subprocess.DEVNULL)
+                self.assertEqual(call.call_args.kwargs["stderr"], subprocess.DEVNULL)
+                self.assertEqual(runner.read_json(self.root / "failure.json")["reason"], reason)
+
+    def test_large_prompt_reaches_delayed_reader_after_progress_interval(self):
+        self.request["context"]["broader_goal"] = "Large handoff: " + "x" * (256 * 1024)
+        request_file = self.root / "large-request.json"
+        runner.write_json(request_file, self.request)
+        output = self.root / "delayed-reader"
+        received = self.root / "received-prompt.bin"
+        child = """import json, sys, time
+from pathlib import Path
+progress = Path(sys.argv[1]) / 'progress.json'
+while not progress.exists():
+    time.sleep(0.005)
+Path(sys.argv[2]).write_bytes(sys.stdin.buffer.read())
+print(sys.argv[3])
+"""
+        command = [sys.executable, "-c", child, str(output), str(received),
+                   json.dumps({"is_error": False, "structured_output": self.response})]
+        real_popen = subprocess.Popen
+        prompt_files = []
+        intended_prompts = []
+
+        def start_child(*args, **kwargs):
+            prompt_file = kwargs["stdin"]
+            prompt_files.append(prompt_file)
+            intended_prompts.append(prompt_file.read())
+            prompt_file.seek(0)
+            return real_popen(*args, **kwargs)
+
+        args = Mock(request=request_file, output_dir=output, model=None, effort=None,
+                    dry_run=False, timeout=5)
+        with patch.object(runner, "preflight_claude"), \
+                patch.object(runner, "build_command", return_value=command), \
+                patch.object(runner, "PROGRESS_INTERVAL", 0.02), \
+                patch.object(runner.subprocess, "Popen", side_effect=start_child), \
+                patch.object(runner, "print") as log:
+            self.assertEqual(runner.run(args), 0)
+        self.assertGreater(len(intended_prompts[0]), 128 * 1024)
+        self.assertEqual(received.read_bytes(), intended_prompts[0])
+        self.assertIn("working silently", str(log.call_args_list))
+        self.assertTrue(prompt_files[0].closed)
+        self.assertEqual(runner.read_json(output / "progress.json")["status"], "exited")
+        self.assertEqual(runner.read_json(output / "response.json"), self.response)
+
+    def test_progress_tracks_output_without_echoing_it(self):
+        process = Mock(args=["stub"], returncode=0)
+        elapsed = [0]
+        calls = []
+
+        def wait(timeout):
+            calls.append(timeout)
+            elapsed[0] += timeout
+            if len(calls) == 1:
+                raise subprocess.TimeoutExpired("stub", timeout)
+            (self.root / "stderr.txt").write_text("private diagnostic")
+
+        process.wait.side_effect = wait
+        with patch.object(runner.time, "monotonic", side_effect=lambda: elapsed[0]), patch.object(runner, "print") as log:
+            runner.wait_with_progress(process, self.root, 90)
+        self.assertEqual(calls, [30, 30])
+        self.assertIn("working silently", str(log.call_args_list))
+        self.assertNotIn("private diagnostic", str(log.call_args_list))
+        progress = runner.read_json(self.root / "progress.json")
+        self.assertEqual(progress["status"], "exited")
+        self.assertEqual(progress["output_bytes"]["stderr.txt"], len("private diagnostic"))
+        self.assertTrue(progress["output_changed_since_last_check"])
+
+    def test_timeout_preserves_quiet_and_active_output_evidence(self):
+        for active in (False, True):
+            output = self.root / str(active)
+            output.mkdir()
+            process = Mock(args=["stub"])
+            elapsed = [0]
+
+            def wait(timeout):
+                elapsed[0] += timeout
+                if active:
+                    (output / "stdout.txt").write_text("partial output")
+                raise subprocess.TimeoutExpired("stub", timeout)
+
+            process.wait.side_effect = wait
+            with self.subTest(active=active), patch.object(runner.time, "monotonic", side_effect=lambda: elapsed[0]), \
+                    patch.object(runner, "stop_process") as stop, patch.object(runner, "print"):
+                with self.assertRaisesRegex(ValueError, r"configured timeout \(10s\)"):
+                    runner.wait_with_progress(process, output, 10)
+                stop.assert_called_once_with(process)
+            failure = runner.read_json(output / "failure.json")
+            self.assertEqual(failure["reason"], "timeout")
+            self.assertEqual(failure["progress"]["output_changed_since_last_check"], active)
+            self.assertEqual(failure["progress"]["seconds_since_observed_output"], 0 if active else None)
+            if active:
+                self.assertEqual((output / "stdout.txt").read_text(), "partial output")
+
+    def test_interruption_is_distinct_from_timeout(self):
+        process = Mock(args=["stub"])
+        process.wait.side_effect = KeyboardInterrupt
+        with patch.object(runner, "stop_process") as stop, patch.object(runner, "print"):
+            with self.assertRaises(KeyboardInterrupt):
+                runner.wait_with_progress(process, self.root, 10)
+            stop.assert_called_once_with(process)
+        self.assertEqual(runner.read_json(self.root / "failure.json")["reason"], "interrupted")
 
     def test_output_directory_cannot_overwrite_or_enter_workspace(self):
         request_file = self.root / "request.json"
