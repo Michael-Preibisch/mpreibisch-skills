@@ -34,7 +34,10 @@ exchange rounds after independent assessment.
 Clone or copy this repository anywhere. Install each package on its calling host;
 authenticate its receiving CLI separately. Both packages contain all their runtime
 resources, with no machine-specific paths, profiles, account IDs, or credentials.
-Python 3.10+ is the only helper dependency.
+Python 3.10+ is the only helper dependency. Claude calls first check authentication
+without retaining account details or starting a model. Both adapters report bounded
+progress and preserve partial diagnostics on timeout. See the
+[progress and failure guide](plugins/mpreibisch-codex/bridge/cli.md#progress-and-failure-handling).
 
 ## Repository contents
 

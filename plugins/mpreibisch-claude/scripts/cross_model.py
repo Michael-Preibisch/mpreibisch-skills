@@ -10,10 +10,13 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import time
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 BRIDGE = PLUGIN_ROOT / "bridge"
+PROGRESS_INTERVAL = 30
+AUTH_TIMEOUT = 30
 
 
 def validate(value, schema, path="$"):
@@ -174,6 +177,82 @@ def stop_process(process):
         process.wait()
 
 
+def preflight_claude(workspace, output):
+    """Check authentication without retaining account details or calling a model."""
+    print("Checking Claude authentication (no model call).", file=sys.stderr, flush=True)
+    try:
+        result = subprocess.run(["claude", "auth", "status"], cwd=workspace,
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, timeout=AUTH_TIMEOUT, check=False)
+    except subprocess.TimeoutExpired:
+        reason = "auth_preflight_timeout"
+    except OSError:
+        reason = "auth_preflight_unavailable"
+    else:
+        if result.returncode == 0:
+            write_json(output / "preflight.json", {"status": "passed"})
+            return
+        reason = "auth_preflight_failed"
+    write_json(output / "failure.json", {"status": "incomplete", "reason": reason})
+    raise ValueError(f"{reason}; check Claude authentication locally before retrying")
+
+
+def communicate_with_progress(process, prompt, output, timeout):
+    """Observe saved output sizes without reading or echoing their contents."""
+    started = time.monotonic()
+    sizes = {name: 0 for name in ("stdout.txt", "stderr.txt", "raw-response.json")}
+    last_output = None
+
+    def report(status):
+        nonlocal sizes, last_output
+        now = time.monotonic()
+        current = {name: (output / name).stat().st_size if (output / name).exists() else 0
+                   for name in sizes}
+        changed = current != sizes
+        if changed:
+            last_output = now
+        sizes = current
+        progress = {"status": status, "elapsed_seconds": round(now - started, 1),
+                    "output_bytes": sizes, "output_changed_since_last_check": changed,
+                    "seconds_since_observed_output": (None if last_output is None
+                                                      else round(now - last_output, 1))}
+        write_json(output / "progress.json", progress)
+        if status == "running":
+            activity = "output changed" if changed else "no visible output change; CLI may be working silently"
+            print(f"Cross-model call: {progress['elapsed_seconds']}s elapsed; {activity}.",
+                  file=sys.stderr, flush=True)
+        return progress
+
+    print(f"Cross-model call started; timeout {timeout}s. Diagnostics: {output}",
+          file=sys.stderr, flush=True)
+    try:
+        while True:
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(process.args, timeout)
+            try:
+                process.communicate(prompt, timeout=min(PROGRESS_INTERVAL, remaining))
+                report("exited")
+                return
+            except subprocess.TimeoutExpired:
+                # communicate retains pending stdin across timeout retries.
+                prompt = None
+                if time.monotonic() - started >= timeout:
+                    raise
+                report("running")
+    except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
+        reason = "timeout" if isinstance(error, subprocess.TimeoutExpired) else "interrupted"
+        stop_process(process)
+        progress = report(reason)
+        write_json(output / "failure.json", {
+            "status": "incomplete", "reason": reason, "progress": progress,
+            "diagnostic": "Saved output may be partial. Quiet output does not establish a hung process. "
+                          "Inspect partial changes before retrying."})
+        if reason == "timeout":
+            raise ValueError(f"CLI exceeded configured timeout ({timeout}s); inspect {output / 'failure.json'}") from None
+        raise
+
+
 def validate_response(response, schema, request, target):
     validate(response, schema)
     evidence_ids = [entry["id"] for entry in response["evidence"]]
@@ -218,6 +297,8 @@ def run(args):
     if args.dry_run:
         print(f"Validated {request['skill']} -> {target}; command saved in {output}")
         return 0
+    if target == "claude":
+        preflight_claude(workspace, output)
     prompt = "\n\n".join([
         "You are the receiving agent for one bounded cross-model assignment. "
         "Do not invoke another agent or cross-model skill. Follow the protocol and "
@@ -233,14 +314,10 @@ def run(args):
         process = subprocess.Popen(command, cwd=workspace, stdin=subprocess.PIPE,
                                    stdout=stdout, stderr=stderr, text=True,
                                    start_new_session=True)
-        try:
-            process.communicate(prompt, timeout=args.timeout)
-        except (subprocess.TimeoutExpired, KeyboardInterrupt):
-            stop_process(process)
-            write_json(output / "failure.json", {"status": "incomplete", "reason":
-                       "CLI timeout or interruption; inspect partial changes before retrying"})
-            raise
+        communicate_with_progress(process, prompt, output, args.timeout)
     if process.returncode:
+        write_json(output / "failure.json", {"status": "incomplete", "reason": "cli_exit",
+                                             "returncode": process.returncode})
         raise ValueError(f"{target} exited {process.returncode}; inspect {output / 'stderr.txt'}")
     if target == "claude":
         envelope = read_json(output / "stdout.txt")

@@ -29,6 +29,10 @@ For temporary local testing without installation, run from the repository root:
 claude --plugin-dir ./plugins/mpreibisch-claude
 ```
 
+Calls report output activity every 30 seconds and preserve timeout diagnostics.
+Quiet output does not establish a hung process. See
+[progress and failure handling](bridge/cli.md#progress-and-failure-handling).
+
 ## Models
 
 Codex defaults to Terra (`gpt-5.6-terra`) at high effort for consensus, review, and

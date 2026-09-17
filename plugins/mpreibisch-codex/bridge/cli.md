@@ -19,7 +19,7 @@ python3 "$PLUGIN_ROOT/scripts/cross_model.py" \
 ```
 
 `--output-dir` must not exist. The caller creates only its parent scratch directory.
-Set `--timeout 600` to change the default ten-minute timeout. Model and effort
+Use `--timeout SECONDS` to change the default 600-second model-call timeout. Model and effort
 defaults come from [models.json](models.json); user choices override them.
 Use `--dry-run` to validate and write `command.json` without invoking a model.
 `MAX_ROUNDS` belongs in the handoff's `exchange.max_rounds`, not this timeout.
@@ -77,6 +77,18 @@ still applies. The request supplies relevant project conventions and instruction
 
 The helper uses `--output-format json --json-schema ...` and extracts
 `structured_output`. It rejects CLI errors even if the process exit code is zero.
+Before dispatch, `claude auth status` checks authentication with a 30-second timeout.
+Only its exit status is used. Auth stdout and stderr are discarded so account details
+and credentials never enter the runner's logs. A failed or unavailable check stops
+the lane before a model call. `preflight.json` records a successful check; dry runs
+skip the check. This verifies CLI authentication status, not model access or remaining
+quota. Model dispatch can still fail after a successful check.
+
+The auth command and exit-status contract were verified on 2026-09-16 against
+`claude auth status --help` and the official
+[Claude CLI reference](https://code.claude.com/docs/en/cli-reference#cli-commands).
+The check adds no dependencies or model requests.
+
 It does not use `--bare`, which skips normal OAuth/keychain authentication on the
 tested Claude Code version. If a command is denied, report it; do not grant broad
 `Bash(*)` access to make the call finish.
@@ -93,7 +105,26 @@ The helper uses `--output-schema` and `--output-last-message`, with an ephemeral
 session. It disables inherited shell execution rules so old allow rules cannot
 widen the sandbox. Workflow defaults remain overridable without changing permissions.
 
-## Failure handling
+## Progress and failure handling
+
+The runner prints a start message and checks saved output every 30 seconds until
+completion or the configured timeout. Each check reports elapsed time and whether
+output changed. It overwrites `progress.json` with elapsed time, output byte counts,
+and time since the last observed output change. It does not echo output contents.
+Claude's JSON transport can stay quiet until completion. Silence alone does not
+establish that a process is hung; output activity alone does not prove useful work.
+
+`stdout.txt`, `stderr.txt`, and any `raw-response.json` remain available after failure.
+Timeout and interruption produce distinct `failure.json` reasons and preserve the
+final progress sample. Authentication failures have separate preflight reasons.
+Inspect these private local artifacts before deciding whether another call is needed.
+Never treat a partial response as a completed review or retry automatically.
+
+The runner reuses standard-library `Popen.communicate` timeout retries with a
+monotonic deadline. Python documents that retrying communication after a timeout
+preserves pending data; no streaming parser or third-party process library is needed.
+See the [Python subprocess documentation](https://docs.python.org/3/library/subprocess.html#subprocess.Popen.communicate)
+(checked 2026-09-16).
 
 On unsupported flags, authentication failure, denied tools, invalid JSON, timeout,
 empty output, or nonzero CLI exit, stop that lane and report the concrete failure.
