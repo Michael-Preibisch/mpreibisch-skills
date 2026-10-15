@@ -1,6 +1,6 @@
 ---
 name: adversarial-review
-description: Ask the other model to challenge a plan, implementation or PR, or idea with evidence-based findings ranked by severity. Use for a critical second-model review without code changes.
+description: Ask the other model to challenge a plan, implementation or PR, or idea with evidence-based findings ranked by severity. Use for a second opinion, to challenge a plan, to find holes in a design or diff, or for any critical second-model review without code changes.
 ---
 
 # Adversarial review
@@ -27,16 +27,13 @@ code, reformat files, apply patches, or run tests that write project artifacts.
    accepted, disputed, or needing evidence, with a concise rationale. Preserve valid
    criticism even when it challenges the original plan. Return empty findings if no
    supported issue exists; state coverage limits instead of inventing assurance.
+5. **Follow-ups in the same session.** Pass the same `--session-file` so the reviewer
+   keeps its context. For disputed findings, resume once with your rationale and
+   evidence; the reviewer withdraws the finding or adds evidence. After fixes, resume
+   with the new snapshot for a re-review of every earlier finding and of the fix itself.
+   For a fully independent second review, use a new session file, never a fork.
 
-Use these severity levels:
-
-| Severity | Meaning |
-| --- | --- |
-| critical | Supported risk of catastrophic or irreversible harm in the scoped scenario; blocks proceeding. |
-| high | A substantial correctness, security, or availability failure likely under a credible trigger. |
-| medium | A bounded defect or missing case with material impact under stated conditions. |
-| low | A small, actionable issue with a concrete consequence. |
-
+Severity levels are defined in the [receiver brief](../../bridge/receivers/adversarial-review.md).
 The result uses `responses/adversarial-review.schema.json`: ranked `findings`,
 `coverage`, `alternatives`, shared evidence, and uncertainties. Include file/line
 references or exact plan sections. Return scoped observations, not an unqualified

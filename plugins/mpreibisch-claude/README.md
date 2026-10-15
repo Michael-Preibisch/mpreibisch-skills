@@ -1,9 +1,9 @@
 # Mpreibisch skills for Claude Code
 
-Claude Code calls Codex for consensus, adversarial review, exploration, and scoped
-implementation. `clear-writing` provides the same writing rules as the Codex package,
-`artifact-standards` the same HTML page standards, and `pr-review-ask` the same Slack
-review-ask format.
+Claude Code calls Codex for consensus, adversarial review, brainstorming, exploration,
+and scoped implementation, keeping one Codex session per task. `clear-writing`
+provides the same writing rules as the Codex package, `artifact-standards` the same
+HTML page standards, and `pr-review-ask` the same PR review-request format.
 
 ## Install and authenticate
 
@@ -33,16 +33,21 @@ Calls report output activity every 30 seconds and preserve timeout diagnostics.
 Quiet output does not establish a hung process. See
 [progress and failure handling](bridge/cli.md#progress-and-failure-handling).
 
+Each task keeps one Codex session: every call passes the same `--session-file`, so
+Codex keeps its context across rounds and follow-ups, and a stopped call can resume.
+Codex keeps these transcripts in its normal session store. See
+[sessions and recovery](bridge/cli.md#sessions-and-recovery).
+
 ## Models
 
-Codex defaults to Terra (`gpt-5.6-terra`) at high effort for consensus, review, and
-exploration. Implementation uses Luna (`gpt-5.6-luna`) at xhigh effort. These settings
-affect the receiving Codex process, not your Claude Code session.
+Codex defaults to GPT-6 Astra (`gpt-6-astra`) at xhigh effort for every workflow.
+These settings affect the receiving Codex process, not your Claude Code session.
 
 Ask for any model supported by your Codex CLI and account. The helper accepts
 `--model MODEL_ID --effort LEVEL`. With `--model` alone, effort uses the model's own
-default; `--effort` alone keeps the workflow's model. Use `--effort default` to omit
-the effort setting. See [model settings and examples](bridge/cli.md#models-and-effort).
+default. With `--effort` alone, a new session uses the workflow's model and a resumed
+session keeps its saved model. Use `--effort default` to omit the effort setting. See
+[model settings and examples](bridge/cli.md#models-and-effort).
 
 ## Examples
 
@@ -56,6 +61,9 @@ those constraints and return a shared conclusion or a split decision. MAX_ROUNDS
 /mpreibisch-claude:adversarial-review Ask Codex to challenge this diff for retry and
 timeout failures. Use the checkout goal and API constraints from this conversation.
 
+/mpreibisch-claude:brainstorm Brainstorm with Codex how to cut checkout latency
+without stale inventory. Rank the ideas by risk and effort, and keep any disagreement.
+
 /mpreibisch-claude:delegate-explore Have Codex trace request IDs in src/checkout and
 tests/checkout. We need an idempotency boundary. Return a call-path map with evidence.
 
@@ -67,8 +75,9 @@ in src/input and tests/input. Preserve the API and meet the acceptance criteria 
 /mpreibisch-claude:artifact-standards Build a shareable HTML page explaining how our
 retry path works, for a teammate with no context on this service.
 
-/mpreibisch-claude:pr-review-ask Ask #eng-platform to review #4312 and #4315. They
-fix the retry budget; #4315 is stacked on #4312. Tag Ana on the second one.
+/mpreibisch-claude:pr-review-ask Draft a review request for #4312 and #4315 for the
+platform team. They fix the retry budget; #4315 is stacked on #4312. Tag @ana on the
+second one.
 ```
 
 The main agent fills the broader context before calling Codex. See
@@ -84,10 +93,9 @@ otherwise it hands you the local file. Its page shell and design guidance ship i
 `skills/artifact-standards`, so it works whether or not the host's own artifact design
 skills are loaded.
 
-`pr-review-ask` needs an authenticated `gh` and, for the Slack draft, the Slack
-connector. It shows the draft in chat, then creates it with the connector's draft tool
-in the channel or DM you name. It never sends; you send from Slack. Without the
-connector it hands you a paste-ready text.
+`pr-review-ask` needs an authenticated `gh`. It shows the draft in chat. If you name a
+destination and Claude Code has a draft tool for it, the skill saves the draft there;
+otherwise it hands you paste-ready text. It never sends; you send it yourself.
 
 The writing references, output style, and optional hook script remain under
 `skills/clear-writing`. They are preserved without activating global hooks or styles.

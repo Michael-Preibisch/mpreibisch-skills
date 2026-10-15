@@ -1,6 +1,6 @@
 ---
 name: delegate-explore
-description: Delegate a bounded research or codebase-exploration lane to the other model, with an explicit question, scope, and evidence-backed artifact. Use for exploration without implementation changes.
+description: Delegate a bounded research or codebase-exploration lane to the other model, with an explicit question, scope, and evidence-backed artifact. Use to ask the other model to investigate, trace, map, or compare something, without implementation changes.
 ---
 
 # Delegate exploration
@@ -27,6 +27,9 @@ alone is insufficient. Both agents remain read-only, including verification comm
    broader task. Mark unanswered questions and limited coverage. If the lane is too
    large or blocked, request a narrower artifact or report the missing source; do
    not let the delegate silently expand scope.
+5. For follow-up questions on the same lane, resume with the same `--session-file`, so
+   the delegate builds on what it already traced. Send the full context and the new
+   question each time. Use a new session file for an unrelated lane.
 
 Use `responses/delegate-explore.schema.json`. Each observation has a claim and
 evidence IDs; each recommendation explains its rationale and connection to the goal.

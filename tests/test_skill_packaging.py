@@ -68,14 +68,7 @@ class SkillInventoryTests(unittest.TestCase):
 
 
 class PrReviewAskTests(unittest.TestCase):
-    FILES = {"SKILL.md", "references/voice.md", "scripts/collect_prs.py"}
-
-    def load_script(self):
-        spec = importlib.util.spec_from_file_location(
-            "collect_prs", PACKAGES[0] / "skills/pr-review-ask/scripts/collect_prs.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module
+    FILES = {"SKILL.md", "references/voice.md"}
 
     def test_both_packages_ship_identical_skill_files(self):
         contents = []
@@ -100,43 +93,6 @@ class PrReviewAskTests(unittest.TestCase):
                 self.assertNotIn("\u2014", text, f"em dash in {package.name}/{name}")
             skill = (package / "skills/pr-review-ask/SKILL.md").read_text(encoding="utf-8")
             self.assertIn("never call a send tool", skill)
-
-    def test_script_help_runs_without_gh(self):
-        for package in PACKAGES:
-            result = subprocess.run([sys.executable, str(package / "skills/pr-review-ask/scripts/collect_prs.py"), "--help"],
-                                    capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("--outline", result.stdout)
-
-    def test_parse_ref_accepts_every_documented_form(self):
-        script = self.load_script()
-        self.assertEqual(script.parse_ref("https://github.com/acme/repo/pull/12", None), ("acme/repo", 12))
-        self.assertEqual(script.parse_ref("acme/repo#7", None), ("acme/repo", 7))
-        self.assertEqual(script.parse_ref("#7", "acme/repo"), ("acme/repo", 7))
-        self.assertEqual(script.parse_ref("7", "acme/repo"), ("acme/repo", 7))
-        with self.assertRaises(ValueError):
-            script.parse_ref("not-a-pr", "acme/repo")
-
-    def test_build_stacks_nests_child_under_parent_and_keeps_independent_roots(self):
-        script = self.load_script()
-        def pr(number, base, head):
-            return {"repo": "acme/repo", "number": number, "title": f"PR {number}", "draft": False,
-                    "base": base, "head": head, "children": []}
-        parent, child, grandchild, lone = pr(1, "main", "a"), pr(2, "a", "b"), pr(3, "b", "c"), pr(4, "main", "d")
-        roots = script.build_stacks([child, lone, grandchild, parent])
-        self.assertEqual([r["number"] for r in roots], [4, 1])
-        self.assertEqual(child["stacked_on"], 1)
-        self.assertEqual(grandchild["stacked_on"], 2)
-        self.assertIsNone(lone["stacked_on"])
-        outline = script.outline(roots)
-        self.assertTrue(outline[2].startswith("    \u25e6"), outline)
-        self.assertIn("(stacked on #2)", outline[3])
-
-    def test_linear_patterns_find_keys_and_workspace_links(self):
-        script = self.load_script()
-        text = "fix(x): y [RES-14275] see https://linear.app/acme/issue/RES-14302/preserve"
-        self.assertEqual(script.LINEAR_KEY.findall(text), ["RES-14275", "RES-14302"])
-        self.assertEqual(script.LINEAR_LINK.findall(text), [("acme", "RES-14302")])
 
 
 class ContextRuleScopeTests(unittest.TestCase):

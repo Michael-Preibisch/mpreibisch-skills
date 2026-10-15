@@ -1,6 +1,6 @@
 ---
 name: consensus
-description: Reach a reasoned Codex and Claude Code consensus on a question, plan, decision, or diff through independent assessments and bounded disagreement resolution. Use when a second model's agreement or an explicit split decision is needed.
+description: Reach a reasoned Codex and Claude Code consensus on a question, plan, decision, or diff through independent assessments and bounded disagreement resolution. Use to cross-check a decision with the other model, resolve a disagreement between the models, or get an explicit shared conclusion or split decision.
 ---
 
 # Consensus
@@ -10,6 +10,10 @@ The calling agent coordinates; the other model is an independent peer. Read
 The calling/main agent must supply the broader goal, motivations, constraints,
 decision rationale, and intended outcome on every call. A question or diff alone
 is not enough. Both agents remain read-only, except for caller-owned scratch artifacts.
+
+Run the whole consensus in one peer session: pass the same
+`--session-file "$HANDOFF/session.json"` on the assessment and on every exchange round.
+The peer then keeps its own investigation and reasoning between rounds.
 
 ## Independent assessment
 
@@ -40,6 +44,8 @@ For each exchange round from `1` through `MAX_ROUNDS`:
    conclusion only when the main agent can endorse it.
 3. Send the full context, evidence, both latest attributed positions, disagreement
    IDs, and that candidate to the peer with `phase: "exchange"` and the current round.
+   Copy into `task.inputs` every evidence entry your position cites that the peer has
+   not seen; a bare evidence ID tells the peer nothing.
    The peer addresses each objection, updates its position, and returns
    `agrees_with_candidate` and the exact `candidate_conclusion`. Agreement must be
    explicit; politeness, partial overlap, silence, or a revised candidate is insufficient.
@@ -49,7 +55,8 @@ For each exchange round from `1` through `MAX_ROUNDS`:
    obtain explicit mutual endorsement within the remaining rounds. Never call a
    majority vote or an unsupported compromise consensus.
 
-One round is one main-agent revision followed by one peer response. Do not start
+One round is one main-agent revision followed by one peer response. Number rounds in
+order, never repeat or skip one, and keep `max_rounds` unchanged for the run. Do not start
 another round beyond the configured cap. No hidden tie-breaker calls. If evidence
 changes the question or scope, report that and obtain the needed context rather
 than quietly restarting the counter. Stop early on blocking failures or if both
