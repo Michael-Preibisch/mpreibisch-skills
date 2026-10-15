@@ -1,6 +1,6 @@
 ---
 name: delegate-implement
-description: Delegate a concrete, testable implementation specification to the other model with bounded write scope, acceptance criteria, and a verified handoff. Use when an authorized implementation lane can be assigned to the other CLI agent.
+description: Delegate a concrete, testable implementation specification to the other model with bounded write scope, acceptance criteria, and a verified handoff. Use to have the other CLI agent implement an authorized, scoped specification.
 ---
 
 # Delegate implementation
@@ -35,6 +35,10 @@ is insufficient. Confirm that implementation is within the user's existing reque
    needed to resolve gaps or validate integration. Do not claim success based solely
    on the delegate's summary. Integrate a separate checkout only after reviewing its
    changes, preserving unrelated work.
+7. **Fix turns.** If the diff misses criteria, resume with the same `--session-file`
+   and send the failing criteria or review notes, within the same scope. Start a fix
+   turn only after you read the diff, never automatically after a failure or timeout.
+   A read-only session never becomes an implementation session; use a new session file.
 
 Use `responses/delegate-implement.schema.json`. Each acceptance criterion has a
 result (`met`, `not_met`, or `not_verified`) and evidence. Each test records its command,

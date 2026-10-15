@@ -104,9 +104,11 @@ class HandoffTests(unittest.TestCase):
             with self.subTest(round=value), self.assertRaises(ValueError):
                 runner.prepare(self.request)
         self.request["exchange"]["round"] = 1
-        self.request["exchange"]["positions"] = [self.position("codex")]
-        with self.assertRaises(ValueError):
-            runner.prepare(self.request)
+        for positions in ([self.position("codex")],
+                          [self.position("codex"), self.position("claude"), self.position("claude")]):
+            self.request["exchange"]["positions"] = positions
+            with self.subTest(agents=[p["agent"] for p in positions]), self.assertRaises(ValueError):
+                runner.prepare(self.request)
 
     def test_unearned_consensus_endorsement_is_rejected(self):
         self.request["skill"] = "consensus"
@@ -119,6 +121,10 @@ class HandoffTests(unittest.TestCase):
             runner.validate_response(response, schema, self.request, "claude")
         response["candidate_conclusion"] = "Use A."
         runner.validate_response(response, schema, self.request, "claude")
+        response["position"]["conclusion"] = "Reject A. Use B instead."
+        with self.assertRaises(ValueError):
+            runner.validate_response(response, schema, self.request, "claude")
+        response["position"]["conclusion"] = "Use A."
         response["position"]["disagreements"] = [{"id": "D1", "claim": "A fails.",
             "rationale": "A loses state.", "evidence_ids": [], "resolution_needed": "Resolve state loss.", "material": True}]
         with self.assertRaises(ValueError):
@@ -131,33 +137,46 @@ class HandoffTests(unittest.TestCase):
 
     def test_command_permissions_and_explicit_model(self):
         schema = PLUGIN / "bridge/responses/delegate-explore.schema.json"
-        claude = runner.build_command("claude", self.request, self.root, schema)
+        claude = runner.build_command("claude", self.request, schema, session_id="s-1")
         self.assertIn("Read,Glob,Grep", claude)
         self.assertIn("dontAsk", claude)
         self.assertNotIn("Bash", claude[claude.index("--tools") + 1])
-        codex = runner.build_command("codex", self.request, self.root, schema, "user-chosen-model")
+        codex = runner.build_command("codex", self.request, schema, "user-chosen-model")
         self.assertEqual(codex[codex.index("--sandbox") + 1], "read-only")
+        self.assertLess(codex.index("--sandbox"), codex.index("exec"))
         self.assertEqual(codex[codex.index("--model") + 1], "user-chosen-model")
         self.assertIn("never", codex)
         self.assertIn("--ignore-user-config", codex)
+        self.assertEqual(codex[codex.index("apps") - 1], "--disable")
         self.request["skill"] = "delegate-implement"
         self.request["task"]["verification_commands"] = ["pytest tests/input"]
-        impl = runner.build_command("claude", self.request, self.root, schema)
+        impl = runner.build_command("claude", self.request, schema, session_id="s-1")
         self.assertIn("Bash(pytest tests/input)", impl[impl.index("--allowedTools") + 1])
-        impl = runner.build_command("codex", self.request, self.root, schema)
+        impl = runner.build_command("codex", self.request, schema)
         self.assertEqual(impl[impl.index("--sandbox") + 1], "workspace-write")
 
+    def test_brainstorm_is_read_only_and_every_skill_has_its_files(self):
+        self.request["skill"] = "brainstorm"
+        runner.prepare(self.request)
+        self.assertEqual(runner.schema_path("brainstorm"), PLUGIN / "bridge/responses/delegate-explore.schema.json")
+        codex = runner.build_command("codex", self.request, runner.schema_path("brainstorm"))
+        self.assertEqual(codex[codex.index("--sandbox") + 1], "read-only")
+        self.request["scope"]["write_paths"] = ["src"]
+        with self.assertRaises(ValueError):
+            runner.prepare(self.request)
+        for skill in runner.read_json(PLUGIN / "bridge/request.schema.json")["properties"]["skill"]["enum"]:
+            with self.subTest(skill=skill):
+                self.assertTrue(runner.schema_path(skill).is_file())
+                self.assertTrue((PLUGIN / "bridge/receivers" / (skill + ".md")).is_file())
+
     def test_workflow_model_and_effort_defaults_for_both_targets(self):
-        for skill in ("consensus", "adversarial-review", "delegate-explore", "delegate-implement"):
+        for skill in ("consensus", "adversarial-review", "delegate-explore", "delegate-implement", "brainstorm"):
             self.request["skill"] = skill
             for target in ("claude", "codex"):
-                implementation = skill == "delegate-implement"
-                model = "claude-opus-5" if target == "claude" else (
-                    "gpt-5.6-luna" if implementation else "gpt-5.6-terra")
-                effort = ("low" if target == "claude" else "xhigh") if implementation else "high"
-                schema = PLUGIN / "bridge/responses" / (skill + ".schema.json")
+                model = "claude-opus-5-5" if target == "claude" else "gpt-6-astra"
+                effort = "xhigh"
                 with self.subTest(skill=skill, target=target):
-                    command = runner.build_command(target, self.request, self.root, schema)
+                    command = runner.build_command(target, self.request, runner.schema_path(skill), session_id="s-1")
                     self.assertEqual(command[command.index("--model") + 1], model)
                     if target == "claude":
                         self.assertEqual(command[command.index("--effort") + 1], effort)
@@ -169,13 +188,13 @@ class HandoffTests(unittest.TestCase):
         for target in ("claude", "codex"):
             for model in ("opus", "future-model-2030", "provider/custom-model:v2"):
                 with self.subTest(target=target, model=model):
-                    command = runner.build_command(target, self.request, self.root, schema, model)
+                    command = runner.build_command(target, self.request, schema, model, session_id="s-1")
                     self.assertEqual(command[command.index("--model") + 1], model)
                     self.assertNotIn("--effort", command)
                     self.assertFalse(any(arg.startswith("model_reasoning_effort=") for arg in command))
 
     def test_effort_overrides_are_independent_of_model_selection(self):
-        for target, model in (("claude", "claude-opus-5"), ("codex", "gpt-5.6-terra")):
+        for target, model in (("claude", "claude-opus-5-5"), ("codex", "gpt-6-astra")):
             with self.subTest(target=target):
                 self.assertEqual(runner.select_model(target, "delegate-explore", effort="low"), (model, "low"))
                 self.assertEqual(runner.select_model(target, "delegate-explore", effort="default"), (model, None))
@@ -205,7 +224,7 @@ class HandoffTests(unittest.TestCase):
                 else:
                     self.assertIn('model_reasoning_effort="xhigh"', command)
 
-    def invoke_stub(self, host, behavior="success", status="complete", timeout=10):
+    def invoke_stub(self, host, behavior="success", status="complete", timeout=10, session_file=None, label="", extra=()):
         if os.name == "nt":
             self.skipTest("Executable stub scripts use a POSIX shebang; request tests are portable.")
         binary_dir = self.root / (host + "-bin")
@@ -213,30 +232,42 @@ class HandoffTests(unittest.TestCase):
         target = "claude" if host == "codex" else "codex"
         stub = binary_dir / target
         response = {**self.response, "status": status}
+        event = "print(json.dumps({'type': %r, %s}), flush=True)\n"
+        message = "print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': %s}}), flush=True)\n"
         stub.write_text("#!" + sys.executable + "\n" +
             "import json,sys,time\nfrom pathlib import Path\n" +
             "if sys.argv[1:3] == ['auth', 'status']:\n" +
             "    print('private-auth-identity')\n" +
             "    sys.exit(" + ("1" if behavior == "auth_failure" else "0") + ")\n" +
+            "with open(" + repr(str(self.root / "argv.jsonl")) + ", 'a') as log:\n" +
+            "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n" +
             "prompt=sys.stdin.read()\n" +
             "Path(" + repr(str(self.root / "received.txt")) + ").write_text(prompt)\n" +
+            "response=" + repr(response) + "\n" +
+            # Codex reports its thread first and may send progress messages before the answer.
+            ((event % ("thread.started", "'thread_id': 'thread-1'")) +
+             (message % repr("Reading the scope.")) if target == "codex" else "") +
             ("time.sleep(30)\n" if behavior == "timeout" else "") +
             ("sys.exit(7)\n" if behavior == "exit" else "") +
-            "response=" + repr(response) + "\n" +
-            ("print('not json')\n" if behavior == "malformed" else
-             "print(json.dumps({'is_error':" + repr(behavior == "cli_error") + ", 'structured_output':response}))\n"
+            (("print('not json')\n" if behavior == "malformed" else
+              "print(json.dumps({'is_error':" + repr(behavior == "cli_error") + ", 'structured_output':response}))\n")
              if target == "claude" else
-             "Path(sys.argv[sys.argv.index('--output-last-message')+1]).write_text(json.dumps(response))\n"),
+             (message % ("'not json'" if behavior == "malformed" else "json.dumps(response)")) +
+             (event % ("turn.completed", "'usage': {}"))),
             encoding="utf-8")
         stub.chmod(0o700)
         request_file = self.root / "request.json"
         runner.write_json(request_file, self.request)
-        output = self.root / (host + "-" + behavior + "-" + status)
+        output = self.root / (host + "-" + behavior + "-" + status + label)
         env = {**os.environ, "PATH": str(binary_dir) + os.pathsep + os.environ.get("PATH", "")}
+        session = ["--session-file", str(session_file)] if session_file else []
         result = subprocess.run([sys.executable, str(ROOT / "plugins" / ("mpreibisch-" + host) / "scripts/cross_model.py"),
-                                 "--request", str(request_file), "--output-dir", str(output),
+                                 "--request", str(request_file), "--output-dir", str(output), *session, *extra,
                                  "--timeout", str(timeout)], capture_output=True, text=True, env=env, timeout=15)
         return result, output
+
+    def logged_argv(self):
+        return [json.loads(line) for line in (self.root / "argv.jsonl").read_text().splitlines()]
 
     def test_both_cli_transports_deliver_context_and_extract_json(self):
         for host in ("codex", "claude"):
@@ -247,6 +278,9 @@ class HandoffTests(unittest.TestCase):
                 received = (self.root / "received.txt").read_text()
                 for value in self.request["context"].values():
                     self.assertIn(value, received)
+                # The peer gets its receiver brief, never the caller's workflow.
+                self.assertIn((PLUGIN / "bridge/receivers/delegate-explore.md").read_text(), received)
+                self.assertNotIn("name: delegate-explore", received)
                 self.assertEqual(output.stat().st_mode & 0o077, 0)
                 if host == "codex":
                     self.assertEqual(runner.read_json(output / "preflight.json"), {"status": "passed"})
@@ -254,22 +288,88 @@ class HandoffTests(unittest.TestCase):
                 for path in output.iterdir():
                     self.assertNotIn("private-auth-identity", path.read_text())
 
-    def test_cli_failures_never_produce_success(self):
-        for behavior in ("exit", "malformed", "cli_error"):
-            with self.subTest(behavior=behavior):
-                result, output = self.invoke_stub("codex", behavior)
+    def test_sessions_resume_with_identical_flags_and_saved_settings(self):
+        for host, target in (("codex", "claude"), ("claude", "codex")):
+            with self.subTest(host=host):
+                (self.root / "argv.jsonl").unlink(missing_ok=True)
+                session = self.root / (host + "-session.json")
+                for label in ("-new", "-resumed"):
+                    result, _ = self.invoke_stub(host, session_file=session, label=label)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("Peer session: ", result.stderr)
+                new, resumed = self.logged_argv()
+                saved = runner.read_json(session)
+                self.assertEqual((saved["target"], saved["model"], saved["effort"]),
+                                 (target, *runner.select_model(target, self.request["skill"])))
+                if target == "claude":
+                    self.assertEqual(new[new.index("--session-id") + 1], saved["session_id"])
+                    self.assertEqual(resumed[resumed.index("--resume") + 1], saved["session_id"])
+                    drop = lambda argv, flag: argv[:argv.index(flag)] + argv[argv.index(flag) + 2:]
+                    self.assertEqual(drop(new, "--session-id"), drop(resumed, "--resume"))
+                else:
+                    self.assertEqual(saved["session_id"], "thread-1")
+                    self.assertEqual(resumed[resumed.index("exec") + 1], "resume")
+                    self.assertEqual(resumed[-2:], ["thread-1", "-"])
+                    self.assertEqual(new, [arg for arg in resumed if arg not in ("resume", "thread-1")])
+
+    def test_resume_overrides_persist_and_effort_only_keeps_the_model(self):
+        for host, target in (("codex", "claude"), ("claude", "codex")):
+            with self.subTest(host=host):
+                (self.root / "argv.jsonl").unlink(missing_ok=True)
+                session = self.root / (host + "-settings.json")
+                for label, extra in (("-1", ("--model", "custom-model", "--effort", "high")),
+                                     ("-2", ("--effort", "low")), ("-3", ())):
+                    result, _ = self.invoke_stub(host, session_file=session, label=label, extra=extra)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                for argv, effort in zip(self.logged_argv(), ("high", "low", "low")):
+                    self.assertEqual(argv[argv.index("--model") + 1], "custom-model")
+                    if target == "claude":
+                        self.assertEqual(argv[argv.index("--effort") + 1], effort)
+                    else:
+                        self.assertIn('model_reasoning_effort="' + effort + '"', argv)
+                self.assertEqual((runner.read_json(session)["model"], runner.read_json(session)["effort"]),
+                                 ("custom-model", "low"))
+
+    def test_incomplete_session_record_is_reported_before_dispatch(self):
+        session = self.root / "incomplete-session.json"
+        runner.write_json(session, {"session_id": "thread-1"})
+        result, output = self.invoke_stub("claude", session_file=session)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("session file is unreadable", runner.read_json(output / "failure.json")["error"])
+        self.assertFalse((self.root / "argv.jsonl").exists())
+
+    def test_session_id_survives_a_truncated_last_event(self):
+        (self.root / "stdout.txt").write_bytes(
+            b'{"type": "thread.started", "thread_id": "thread-1"}\n{"type": "item.completed", "item": {"text": "caf\xc3')
+        self.assertEqual([event["thread_id"] for event in runner.codex_events(self.root)], ["thread-1"])
+
+    def test_cli_failures_never_produce_success_and_leave_a_report(self):
+        for host, behavior in (("codex", "exit"), ("codex", "malformed"), ("codex", "cli_error"),
+                               ("claude", "exit"), ("claude", "malformed")):
+            with self.subTest(host=host, behavior=behavior):
+                result, output = self.invoke_stub(host, behavior)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse((output / "response.json").exists())
+                failure = runner.read_json(output / "failure.json")
+                self.assertEqual(failure["status"], "incomplete")
+                self.assertEqual(failure["session_file"], str((output / "session.json").resolve()))
 
     def test_blocked_peer_response_is_preserved_with_nonzero_exit(self):
         result, output = self.invoke_stub("codex", status="blocked")
         self.assertEqual(result.returncode, 2)
         self.assertEqual(runner.read_json(output / "response.json")["status"], "blocked")
 
-    def test_timeout_leaves_failure_artifact(self):
-        result, output = self.invoke_stub("codex", "timeout", timeout=1)
+    def test_timeout_keeps_the_session_and_rejects_partial_messages(self):
+        session = self.root / "session.json"
+        result, output = self.invoke_stub("claude", "timeout", timeout=1, session_file=session)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(runner.read_json(output / "failure.json")["status"], "incomplete")
+        failure = runner.read_json(output / "failure.json")
+        self.assertEqual((failure["reason"], failure["session_file"]), ("timeout", str(session.resolve())))
+        self.assertFalse((output / "response.json").exists())
+        self.assertEqual(runner.read_json(session)["session_id"], "thread-1")
+        result, _ = self.invoke_stub("claude", session_file=session, label="-resumed")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.logged_argv()[-1][-2:], ["thread-1", "-"])
 
     def test_auth_failure_stops_before_model_dispatch_and_discards_identity(self):
         result, output = self.invoke_stub("codex", "auth_failure")
@@ -317,8 +417,8 @@ print(sys.argv[3])
             prompt_file.seek(0)
             return real_popen(*args, **kwargs)
 
-        args = Mock(request=request_file, output_dir=output, model=None, effort=None,
-                    dry_run=False, timeout=5)
+        args = Mock(request=request_file, output_dir=output, session_file=None, model=None,
+                    effort=None, dry_run=False, timeout=5)
         with patch.object(runner, "preflight_claude"), \
                 patch.object(runner, "build_command", return_value=command), \
                 patch.object(runner, "PROGRESS_INTERVAL", 0.02), \
@@ -393,10 +493,12 @@ print(sys.argv[3])
     def test_output_directory_cannot_overwrite_or_enter_workspace(self):
         request_file = self.root / "request.json"
         runner.write_json(request_file, self.request)
-        for output in (self.root, self.workspace / "scratch"):
+        for output, session in ((self.root, ()), (self.workspace / "scratch", ()),
+                                (self.root / "outside", ("--session-file", str(self.workspace / "session.json")))):
             result = subprocess.run([sys.executable, str(PLUGIN / "scripts/cross_model.py"),
-                "--request", str(request_file), "--output-dir", str(output), "--dry-run"], capture_output=True)
+                "--request", str(request_file), "--output-dir", str(output), *session, "--dry-run"], capture_output=True)
             self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.workspace / "session.json").exists())
 
 
 if __name__ == "__main__":

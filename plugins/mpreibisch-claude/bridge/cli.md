@@ -15,19 +15,45 @@ From the calling agent, resolve the following absolute paths and run:
 ```sh
 python3 "$PLUGIN_ROOT/scripts/cross_model.py" \
   --request "$HANDOFF/request.json" \
+  --session-file "$HANDOFF/session.json" \
   --output-dir "$HANDOFF/call-0"
 ```
 
 `--output-dir` must not exist. The caller creates only its parent scratch directory.
-Use `--timeout SECONDS` to change the default 600-second model-call timeout. Model and effort
+Use `--timeout SECONDS` to change the default 3600-second model-call timeout. Model and effort
 defaults come from [models.json](models.json); user choices override them.
 Use `--dry-run` to validate and write `command.json` without invoking a model.
 `MAX_ROUNDS` belongs in the handoff's `exchange.max_rounds`, not this timeout.
 
-The helper starts a fresh session for each call, passing the full request through
-stdin. It uses argument arrays, not shell interpolation. An exit code of zero means
-the response passed the schema and the peer reported `complete`. A nonzero exit
-means the main agent must inspect the response or failure diagnostics.
+The helper passes the full request through stdin and uses argument arrays, not shell
+interpolation. An exit code of zero means the response passed the schema and the peer
+reported `complete`. A nonzero exit means the main agent must inspect the response or
+`failure.json`.
+
+## Sessions and recovery
+
+`--session-file` names the task's peer session record. If the file does not exist, the
+call starts a new session and writes `{target, session_id, model, effort}` to it. If it
+exists, the call resumes that session with the saved model and effort. An explicit
+`--model` or `--effort` replaces the saved value for that call and all later ones; an
+effort-only override keeps the saved model. The session file must be outside the
+workspace. Without `--session-file`, the call starts a new session recorded in
+`OUTPUT_DIR/session.json`, which a later call can pass to resume it. A corrupt record or
+a failed resume is reported, never replaced silently. Every new and resumed call is
+built from the same flag list, so all permission flags repeat on every resume.
+
+The runner records the session after every call that started, including a timeout or
+an interruption, and prints `Peer session: PATH` on stderr. To recover a stopped call:
+
+1. Confirm that the old process stopped, and read `failure.json`, `stdout.txt`, and
+   `stderr.txt`.
+2. For implementation, inspect and reconcile partial edits first.
+3. Resume with the same `--session-file` and a request that asks for the final answer.
+
+If the runner itself died before it wrote the record, take the Codex ID from the
+`thread.started` event in the saved `stdout.txt`; a missing record does not prove that
+no session started. If no ID exists, the call cannot be resumed: say so. Never start a
+replacement session silently, and never replay an implementation automatically.
 
 ## Models and effort
 
@@ -35,8 +61,8 @@ These defaults apply to the receiving CLI, not to the calling agent's model:
 
 | Workflow | Claude Code target | Codex target |
 | --- | --- | --- |
-| Consensus, adversarial review, exploration | `claude-opus-5`, `high` | `gpt-5.6-terra`, `high` |
-| Implementation | `claude-opus-5`, `low` | `gpt-5.6-luna`, `xhigh` |
+| Consensus, adversarial review, exploration, brainstorm | `claude-opus-5-5`, `xhigh` | `gpt-6-astra`, `xhigh` |
+| Implementation | `claude-opus-5-5`, `xhigh` | `gpt-6-astra`, `xhigh` |
 
 Respect any model or effort the user names. Pass the choices explicitly:
 
@@ -48,23 +74,21 @@ python3 "$PLUGIN_ROOT/scripts/cross_model.py" \
 
 The helper accepts any model ID or alias supported by the target CLI and account.
 There is no model whitelist. With `--model` alone, it omits effort so the chosen model
-can use its own default. With `--effort` alone, it keeps the workflow's default model.
+can use its own default. With `--effort` alone, a new session uses the workflow's default
+model, and a resumed session keeps its saved model.
 Use `--effort default` to omit the effort setting even with a default model. Explicit
 effort values pass through unchanged; the target CLI validates compatibility.
 Claude receives `--effort LEVEL`; Codex receives `-c model_reasoning_effort="LEVEL"`.
 The final arguments are saved in `command.json`, including defaults and overrides.
 
-Keep the same selected peer model and effort throughout one consensus run unless
-the user changes them. Record an authorized change in the decision artifact. Do not
-silently substitute another model after availability or authentication errors.
-`clear-writing` runs in the calling host and does not start another model.
+A resumed session keeps its model and effort unless the user changes them. Record an
+authorized change in the decision artifact. Do not silently substitute another model
+after availability or authentication errors. `clear-writing` runs in the calling host
+and does not start another model.
 
-Model IDs and effort controls were checked against the official
-[Opus 5 documentation](https://platform.claude.com/docs/en/models/opus-5/whats-new-opus-5),
-[Terra documentation](https://developers.openai.com/api/docs/models/gpt-5.6-terra),
-[Luna documentation](https://developers.openai.com/api/docs/models/gpt-5.6-luna),
-[Claude CLI reference](https://code.claude.com/docs/en/cli-reference), and
-[Codex configuration reference](https://developers.openai.com/codex/config-reference).
+Effort flags follow the [Claude CLI reference](https://code.claude.com/docs/en/cli-reference)
+and the [Codex configuration reference](https://developers.openai.com/codex/config-reference).
+The default model IDs and efforts were confirmed by live calls; see Verified behavior.
 
 ## Claude Code target
 
@@ -77,6 +101,8 @@ still applies. The request supplies relevant project conventions and instruction
 
 The helper uses `--output-format json --json-schema ...` and extracts
 `structured_output`. It rejects CLI errors even if the process exit code is zero.
+A new call passes a runner-generated UUID with `--session-id`; a resumed call passes
+`--resume UUID`.
 Before dispatch, `claude auth status` checks authentication with a 30-second timeout.
 Only its exit status is used. Auth stdout and stderr are discarded so account details
 and credentials never enter the runner's logs. A failed or unavailable check stops
@@ -95,15 +121,25 @@ tested Claude Code version. If a command is denied, report it; do not grant broa
 
 ## Codex target
 
-Calls use `codex exec`, approval policy `never`, and `read-only` sandboxing.
-Implementation alone switches to `workspace-write`. Network access stays disabled;
-web search, apps, plugins, hooks, and further agent delegation are disabled. User
-configuration is excluded, including inherited MCP servers. Authentication still
-uses the normal Codex credentials. Project instructions remain applicable.
+Calls use `codex exec` (new) or `codex exec resume ID` (resumed), approval policy
+`never`, and `read-only` sandboxing. Implementation alone switches to `workspace-write`.
+`exec resume` has no sandbox flag, so `--ask-for-approval` and `--sandbox` go before
+`exec` in both shapes. Network access stays disabled; web search, apps, plugins, and
+hooks are disabled. The runner also passes the multi-agent disable flags, but agent
+tools remain available on the tested model, so the no-recursion rule is enforced
+through instructions (see Verified behavior). `--disable apps` matters most: the
+sandbox covers shell commands only, and without it a read-only session still exposes
+connected app tools that can write. User configuration is excluded, including inherited
+MCP servers. Authentication still uses the normal Codex credentials. Project
+instructions remain applicable.
 
-The helper uses `--output-schema` and `--output-last-message`, with an ephemeral
-session. It disables inherited shell execution rules so old allow rules cannot
-widen the sandbox. Workflow defaults remain overridable without changing permissions.
+The helper uses `--output-schema` and `--json`. It reads the session ID from the
+`thread.started` event. After a successful exit and a `turn.completed` event, it takes
+the response from the last completed `agent_message` item. Timeout and interruption
+never turn an earlier message into a response. It does not use `--output-last-message`,
+which did not always write its file on resume. It disables inherited shell execution
+rules so old allow rules cannot widen the sandbox. Workflow defaults remain overridable
+without changing permissions.
 
 ## Progress and failure handling
 
@@ -114,11 +150,13 @@ and time since the last observed output change. It does not echo output contents
 Claude's JSON transport can stay quiet until completion. Silence alone does not
 establish that a process is hung; output activity alone does not prove useful work.
 
-`stdout.txt`, `stderr.txt`, and any `raw-response.json` remain available after failure.
-Timeout and interruption produce distinct `failure.json` reasons and preserve the
-final progress sample. Authentication failures have separate preflight reasons.
+`stdout.txt` and `stderr.txt` remain available after failure. Every failure of a call
+that created its output directory leaves `failure.json` with a reason and, when one
+exists, the session file. Timeout and interruption have distinct reasons and preserve
+the final progress sample. Authentication failures have separate preflight reasons.
 Inspect these private local artifacts before deciding whether another call is needed.
-Never treat a partial response as a completed review or retry automatically.
+Never treat a partial response as a completed review or retry automatically; resume the
+session deliberately, as described in Sessions and recovery.
 
 The runner supplies the complete UTF-8 prompt through a secure, seekable
 `TemporaryFile` as stdin. The context manager closes and deletes it after the child
@@ -145,3 +183,27 @@ CLI permission controls enforce tool/workspace limits, while exact file scope an
 test intent also require agent compliance and caller review. These skills are not
 an operating-system isolation system. Use a dedicated environment when that boundary
 must be enforced against arbitrary code. Unsupported CLI versions fail closed.
+
+## Verified behavior
+
+Checked on 2026-10-15 with Codex CLI `0.161.0` and Claude Code `2.1.280`, through this
+runner, in both directions, on a throwaway workspace:
+
+- **New call and resume.** Each target answered a question, then answered a follow-up
+  from memory in the resumed session. The session IDs matched, the saved model and effort
+  were reused, and both responses passed their schemas.
+- **Default models.** `claude-opus-5-5` and `gpt-6-astra` both accepted `xhigh`.
+- **Timeout mid-turn.** A 25-second timeout stopped each call during work. Each left
+  `failure.json` with the session file. No peer process remained, and the resumed call
+  returned a valid final answer.
+- **Permissions on resume.** Codex session records show `read-only` sandboxing and
+  approval `never` for the new and the resumed turn. Claude's resumed call had the same
+  read-only tools. An implementation session kept its write access for a fix turn and
+  changed only the file in scope.
+- **Delegation.** `--disable multi_agent` and `--disable multi_agent_v2` don't remove
+  Codex's agent tools for `gpt-6-astra`: the model catalog sets the multi-agent version
+  per model. The session runs in an explicit-request-only mode, so it spawns agents only
+  when asked. The receiver prompt forbids that, and shell access could reach another CLI
+  anyway. The no-recursive-delegation rule therefore stays an instruction, not a guarantee.
+- **`--output-last-message` on resume** once exited 0 without writing its file. The
+  runner reads the final answer from the `--json` events instead.

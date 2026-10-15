@@ -14,7 +14,8 @@
         "consensus",
         "adversarial-review",
         "delegate-explore",
-        "delegate-implement"
+        "delegate-implement",
+        "brainstorm"
       ],
       "minLength": 1
     },
