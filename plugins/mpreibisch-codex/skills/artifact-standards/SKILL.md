@@ -1,6 +1,6 @@
 ---
 name: artifact-standards
-description: House standards for every shareable HTML page an agent produces - artifacts, visual explainers, reports, plans, recaps, comparisons, architecture explainers, and any page meant to be shared or posted in Slack. Load it before you write or update such a page, including a quick one-pager. It fixes the page shell, the palette, the light-first theme contract, the writing gates, terms-first for explainers, source links, delivery, the share line, and the pre-publish checklist. Apply proactively; never wait to be asked. Not for ordinary application UI.
+description: House standards for every shareable HTML page an agent produces - artifacts, visual explainers, reports, plans, recaps, comparisons, architecture explainers, and any page meant to be shared or posted in team chat. Load it before you write or update such a page, including a quick one-pager. It fixes the page shell, the palette, the light-first theme contract, the writing gates, terms-first for explainers, source links, delivery, the share line, and the pre-publish checklist. Apply proactively; never wait to be asked. Not for ordinary application UI.
 ---
 
 # Artifact standards
@@ -153,18 +153,17 @@ Two parts, nothing else.
 Published to a hosted URL:
 
 1. The bottom line in one or two lines, then the link.
-2. A paste-ready Slack line in a code block: `<Title>: <one-line subtitle> <url>`.
+2. A paste-ready share line in a code block: `<Title>: <one-line subtitle> <url>`.
 
 Local file only:
 
 1. The bottom line in one or two lines, then the file link.
-2. A paste-ready Slack line in a code block: `<Title>: <one-line subtitle> (HTML file attached)`,
+2. A paste-ready share line in a code block: `<Title>: <one-line subtitle> (HTML file attached)`,
    plus one line telling the user to attach the file to that message.
 
-Some hosts serve the same generic preview card for every page link. Claude Code's
-`Artifact` host is one: claude.ai shows "Claude Artifact" for every artifact URL, so
-the Slack message text is the only place the title and subtitle can appear. Either
-way: no em dashes, no emoji, one sentence.
+Some hosts show the same preview card for every page link, so the share line is the
+only place the title and subtitle can appear. Either way: no em dashes, no emoji, one
+sentence.
 
 ## Pre-publish checklist
 

@@ -25,6 +25,15 @@ permissions, failure behavior, and workflow-specific decisions. Link detailed
 references and schemas instead of repeating them across skills. Use scripts when
 deterministic execution improves reliability; avoid helpers that only add indirection.
 
+Keep deterministic machinery to the minimum. Agents follow instructions well, so code
+only what an instruction cannot do: CLI flags, session IDs, error capture, and literal
+configuration. Put every other rule in prose, and prefer deleting machinery to adding it.
+
+Keep skills universal. Assume no company, product, or tool beyond GitHub; Codex and
+Claude Code are this repository's purpose, and Python, git, and `gh` are fine. Describe
+other integrations by capability ("if the host exposes a draft tool"), and use invented,
+neutral examples.
+
 Preserve the user's intent and existing authorization. Ask for missing information
 only when it materially affects the result and cannot be recovered from context.
 Do not turn one example into a universal restriction. Use the `clear-writing` rules
@@ -36,10 +45,10 @@ Codex delegates through the `claude` CLI. Claude Code delegates through `codex`.
 Use the shared runner and each package's `bridge/host.json` to choose the other CLI.
 Keep default model choices in `bridge/models.json`, synchronized across packages:
 
-| Receiving CLI | Consensus, review, exploration | Implementation |
+| Receiving CLI | Consensus, review, brainstorm, exploration | Implementation |
 | --- | --- | --- |
-| Claude Code | `claude-opus-5`, high | `claude-opus-5`, low |
-| Codex | `gpt-5.6-terra`, high | `gpt-5.6-luna`, xhigh |
+| Claude Code | `claude-opus-5-5`, xhigh | `claude-opus-5-5`, xhigh |
+| Codex | `gpt-6-astra`, xhigh | `gpt-6-astra`, xhigh |
 
 These are overridable defaults, not an allowed-model list. Accept model IDs and
 aliases from the user, including future models supported by the receiving CLI.
@@ -58,6 +67,11 @@ Every cross-model skill must require the calling/main agent to supply the broade
 goal, motivations, constraints, decision rationale, and intended outcome. Explain
 how the delegated work supports that goal. A question, diff, plan, or task alone is
 not sufficient. Keep this context in every consensus round and follow-up handoff.
+
+Keep one peer session per task, in both directions: pass the same `--session-file` on
+every call of the task, and start a new session file for an independent view. Never
+fork a session for independence, and never resume an unrecorded "last" session. Every
+resumed call must repeat all permission flags; a session never widens permissions.
 
 Use the shared request and response contracts. Name read/write scopes, exclusions,
 evidence snapshots, acceptance criteria, and expected artifacts. Distinguish facts,

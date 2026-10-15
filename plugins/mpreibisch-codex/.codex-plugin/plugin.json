@@ -1,7 +1,7 @@
 {
   "name": "mpreibisch-codex",
-  "version": "1.3.1",
-  "description": "Cross-model consensus, review, exploration, implementation, clear writing, HTML artifact standards, and Slack PR review asks.",
+  "version": "1.4.0",
+  "description": "Cross-model consensus, review, brainstorming, exploration, implementation, clear writing, HTML artifact standards, and GitHub PR review requests.",
   "author": {
     "name": "mpreibisch-skills contributors"
   },
@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "Mpreibisch skills for Codex",
     "shortDescription": "Collaborate with Claude Code and hold the house HTML standards.",
-    "longDescription": "Use Claude Code for independent consensus, critical review, bounded exploration, and implementation with full task context. Includes clear-writing, artifact-standards for every shareable HTML page, and pr-review-ask for Slack review requests.",
+    "longDescription": "Use Claude Code, in one persistent session per task, for independent consensus, critical review, brainstorming, bounded exploration, and implementation with full task context. Includes clear-writing, artifact-standards for every shareable HTML page, and pr-review-ask for GitHub PR review requests.",
     "developerName": "mpreibisch-skills contributors",
     "category": "Productivity",
     "capabilities": [
@@ -18,10 +18,10 @@
     ],
     "defaultPrompt": [
       "Ask Claude to review my plan.",
-      "Explore this codebase with Claude.",
+      "Brainstorm options with Claude.",
       "Reach consensus on this decision.",
       "Build a shareable HTML explainer to house standards.",
-      "Draft a Slack review ask for these PRs."
+      "Draft a review request for these PRs."
     ]
   }
 }

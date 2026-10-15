@@ -1,9 +1,9 @@
 # Mpreibisch skills for Codex
 
-Codex calls Claude Code for consensus, adversarial review, exploration, and scoped
-implementation. `clear-writing` provides the same writing rules as the Claude package,
-`artifact-standards` the same HTML page standards, and `pr-review-ask` the same Slack
-review-ask format.
+Codex calls Claude Code for consensus, adversarial review, brainstorming, exploration,
+and scoped implementation, keeping one Claude session per task. `clear-writing`
+provides the same writing rules as the Claude package, `artifact-standards` the same
+HTML page standards, and `pr-review-ask` the same PR review-request format.
 
 ## Install and authenticate
 
@@ -31,16 +31,21 @@ details. Calls report output activity every 30 seconds and preserve timeout diag
 Quiet output does not establish a hung process. See
 [progress and failure handling](bridge/cli.md#progress-and-failure-handling).
 
+Each task keeps one Claude session: every call passes the same `--session-file`, so
+Claude keeps its context across rounds and follow-ups, and a stopped call can resume.
+Claude keeps these transcripts in its normal session store. See
+[sessions and recovery](bridge/cli.md#sessions-and-recovery).
+
 ## Models
 
-Claude defaults to Opus 5 (`claude-opus-5`) at high effort for consensus, review, and
-exploration. Implementation uses Opus 5 at low effort. These settings affect the
-receiving Claude process, not your Codex session.
+Claude defaults to Opus 5.5 (`claude-opus-5-5`) at xhigh effort for every workflow.
+These settings affect the receiving Claude process, not your Codex session.
 
 Ask for any model supported by your Claude CLI and account. The helper accepts
 `--model MODEL_ID --effort LEVEL`. With `--model` alone, effort uses the model's own
-default; `--effort` alone keeps the workflow's model. Use `--effort default` to omit
-the effort setting. See [model settings and examples](bridge/cli.md#models-and-effort).
+default. With `--effort` alone, a new session uses the workflow's model and a resumed
+session keeps its saved model. Use `--effort default` to omit the effort setting. See
+[model settings and examples](bridge/cli.md#models-and-effort).
 
 ## Examples
 
@@ -54,6 +59,9 @@ constraints and return a shared conclusion or a split decision. MAX_ROUNDS=3.
 $adversarial-review Ask Claude to challenge this diff for retry and timeout failures.
 Use the checkout goal and API compatibility constraints from this conversation.
 
+$brainstorm Brainstorm with Claude how to cut checkout latency without stale
+inventory. Rank the ideas by risk and effort, and keep any disagreement.
+
 $delegate-explore Have Claude trace request IDs in src/checkout and tests/checkout.
 We need to choose an idempotency boundary. Return a call-path map with evidence.
 
@@ -65,8 +73,8 @@ $clear-writing Rewrite this README for clarity while preserving its meaning.
 $artifact-standards Build a shareable HTML page explaining how our retry path works,
 for a teammate with no context on this service.
 
-$pr-review-ask Ask #eng-platform to review #4312 and #4315. They fix the retry
-budget; #4315 is stacked on #4312. Tag Ana on the second one.
+$pr-review-ask Draft a review request for #4312 and #4315 for the platform team.
+They fix the retry budget; #4315 is stacked on #4312. Tag @ana on the second one.
 ```
 
 The main agent fills the required context from the conversation before calling
@@ -81,9 +89,10 @@ because Codex has no page publisher. It never starts a preview server or install
 Its page shell and design guidance ship inside `skills/artifact-standards`, so it does
 not depend on any host design skill.
 
-`pr-review-ask` needs an authenticated `gh`. Codex has no Slack tool by default, so
-the skill hands you a paste-ready text; if a Slack MCP server with a draft tool is
-configured, it saves the draft there instead. It never sends.
+`pr-review-ask` needs an authenticated `gh`. It shows the draft in chat. If you name a
+destination and Codex has a draft tool for it, for example through an MCP server you
+added, the skill saves the draft there; otherwise it hands you paste-ready text. It
+never sends.
 
 For maintenance or offline checks, use the validation instructions in the repository
 README. The imported writing references, output style, and optional hook script are
