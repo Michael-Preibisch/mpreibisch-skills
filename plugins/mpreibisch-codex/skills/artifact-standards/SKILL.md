@@ -77,7 +77,7 @@ outside the token blocks, including SVG strokes and chart colours.
 
 The shell stores the choice under one key for the whole origin. Pages served from the
 same origin can therefore share a stored preference, and browsers treat storage under
-`file:` URLs differently. Both are known and accepted; do not redesign the shell.
+`file:` URLs differently. Keep this behavior; don't redesign the shell.
 
 ## Palette
 

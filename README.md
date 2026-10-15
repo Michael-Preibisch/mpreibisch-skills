@@ -141,16 +141,13 @@ against bundled schemas, package parity, skill references, and upstream file has
 The delegation-context rule applies only to the five cross-model skills; `clear-writing`,
 `artifact-standards`, and `pr-review-ask` are exempt because they start no handoff.
 Tests use stub CLIs to check permissions, session resume, context delivery, JSON
-extraction, failure handling, and round bounds without spending model tokens. Claude's own validator
-provides an additional host check when installed. The Codex package was also checked
-with the official plugin-creator manifest validator during creation.
+extraction, failure handling, and round bounds without spending model tokens.
+Claude's own validator provides an additional host check when installed.
 
-Runtime flags were checked against Codex CLI `0.161.0` and Claude Code `2.1.280`.
-Other versions must support the flags in [the CLI guide](plugins/mpreibisch-codex/bridge/cli.md).
+Both CLIs must support the flags in [the CLI guide](plugins/mpreibisch-codex/bridge/cli.md).
 Unsupported flags fail the call; the helper never falls back to weaker permissions.
-The helper includes POSIX and Windows process termination. Validation ran on macOS;
-other platforms have not been integration-tested. Shell examples use POSIX syntax;
-set equivalent paths in your shell. A live model call requires your own CLI
+The helper includes POSIX and Windows process termination. Shell examples use POSIX
+syntax; set equivalent paths in your shell. A live model call requires your own CLI
 authentication and is separate from offline validation.
 
 ## Maintain

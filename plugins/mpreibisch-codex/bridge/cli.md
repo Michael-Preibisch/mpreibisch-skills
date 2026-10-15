@@ -88,7 +88,6 @@ and does not start another model.
 
 Effort flags follow the [Claude CLI reference](https://code.claude.com/docs/en/cli-reference)
 and the [Codex configuration reference](https://developers.openai.com/codex/config-reference).
-The default model IDs and efforts were confirmed by live calls; see Verified behavior.
 
 ## Claude Code target
 
@@ -110,13 +109,11 @@ the lane before a model call. `preflight.json` records a successful check; dry r
 skip the check. This verifies CLI authentication status, not model access or remaining
 quota. Model dispatch can still fail after a successful check.
 
-The auth command and exit-status contract were verified on 2026-09-16 against
-`claude auth status --help` and the official
+The auth command and its exit-status contract are described in the
 [Claude CLI reference](https://code.claude.com/docs/en/cli-reference#cli-commands).
 The check adds no dependencies or model requests.
 
-It does not use `--bare`, which skips normal OAuth/keychain authentication on the
-tested Claude Code version. If a command is denied, report it; do not grant broad
+It does not use `--bare`, which skips normal OAuth and keychain authentication. If a command is denied, report it; do not grant broad
 `Bash(*)` access to make the call finish.
 
 ## Codex target
@@ -125,9 +122,9 @@ Calls use `codex exec` (new) or `codex exec resume ID` (resumed), approval polic
 `never`, and `read-only` sandboxing. Implementation alone switches to `workspace-write`.
 `exec resume` has no sandbox flag, so `--ask-for-approval` and `--sandbox` go before
 `exec` in both shapes. Network access stays disabled; web search, apps, plugins, and
-hooks are disabled. The runner also passes the multi-agent disable flags, but agent
-tools remain available on the tested model, so the no-recursion rule is enforced
-through instructions (see Verified behavior). `--disable apps` matters most: the
+hooks are disabled. The runner also passes the multi-agent disable flags, but some
+models keep their agent tools, so the no-recursion rule is enforced through
+instructions (see Known limits). `--disable apps` matters most: the
 sandbox covers shell commands only, and without it a read-only session still exposes
 connected app tools that can write. User configuration is excluded, including inherited
 MCP servers. Authentication still uses the normal Codex credentials. Project
@@ -136,8 +133,8 @@ instructions remain applicable.
 The helper uses `--output-schema` and `--json`. It reads the session ID from the
 `thread.started` event. After a successful exit and a `turn.completed` event, it takes
 the response from the last completed `agent_message` item. Timeout and interruption
-never turn an earlier message into a response. It does not use `--output-last-message`,
-which did not always write its file on resume. It disables inherited shell execution
+never turn an earlier message into a response. It does not use `--output-last-message`
+(see Known limits). It disables inherited shell execution
 rules so old allow rules cannot widen the sandbox. Workflow defaults remain overridable
 without changing permissions.
 
@@ -162,15 +159,9 @@ The runner supplies the complete UTF-8 prompt through a secure, seekable
 `TemporaryFile` as stdin. The context manager closes and deletes it after the child
 exits or the call fails. Progress checks use `Popen.wait` with a monotonic deadline;
 they do not interrupt prompt delivery. Stdout and stderr go directly to diagnostic
-files, so no pipe writer or output-draining thread is required.
-
-A real subprocess regression delays reading until after the first progress check,
-then verifies receipt of a prompt larger than 128 KiB. This covers a failure in the
-previous pipe transport: retrying `communicate` with no input after a partial write
-could leave the remaining prompt unsent. See the
+files, so no pipe writer or output-draining thread is required. See the
 [Python temporary-file documentation](https://docs.python.org/3/library/tempfile.html#tempfile.TemporaryFile)
-and [subprocess wait documentation](https://docs.python.org/3/library/subprocess.html#subprocess.Popen.wait)
-(checked 2026-09-16).
+and [subprocess wait documentation](https://docs.python.org/3/library/subprocess.html#subprocess.Popen.wait).
 
 On unsupported flags, authentication failure, denied tools, invalid JSON, timeout,
 empty output, or nonzero CLI exit, stop that lane and report the concrete failure.
@@ -184,26 +175,12 @@ test intent also require agent compliance and caller review. These skills are no
 an operating-system isolation system. Use a dedicated environment when that boundary
 must be enforced against arbitrary code. Unsupported CLI versions fail closed.
 
-## Verified behavior
+## Known limits
 
-Checked on 2026-10-15 with Codex CLI `0.161.0` and Claude Code `2.1.280`, through this
-runner, in both directions, on a throwaway workspace:
-
-- **New call and resume.** Each target answered a question, then answered a follow-up
-  from memory in the resumed session. The session IDs matched, the saved model and effort
-  were reused, and both responses passed their schemas.
-- **Default models.** `claude-opus-5-5` and `gpt-6-astra` both accepted `xhigh`.
-- **Timeout mid-turn.** A 25-second timeout stopped each call during work. Each left
-  `failure.json` with the session file. No peer process remained, and the resumed call
-  returned a valid final answer.
-- **Permissions on resume.** Codex session records show `read-only` sandboxing and
-  approval `never` for the new and the resumed turn. Claude's resumed call had the same
-  read-only tools. An implementation session kept its write access for a fix turn and
-  changed only the file in scope.
-- **Delegation.** `--disable multi_agent` and `--disable multi_agent_v2` don't remove
-  Codex's agent tools for `gpt-6-astra`: the model catalog sets the multi-agent version
-  per model. The session runs in an explicit-request-only mode, so it spawns agents only
-  when asked. The receiver prompt forbids that, and shell access could reach another CLI
-  anyway. The no-recursive-delegation rule therefore stays an instruction, not a guarantee.
-- **`--output-last-message` on resume** once exited 0 without writing its file. The
-  runner reads the final answer from the `--json` events instead.
+- Codex's model catalog sets the multi-agent version per model. On models such as
+  `gpt-6-astra`, `--disable multi_agent` and `--disable multi_agent_v2` don't remove the
+  agent tools; the session only spawns agents when explicitly asked. The receiver prompt
+  forbids that, and shell access could reach another CLI anyway, so the
+  no-recursive-delegation rule is an instruction, not a guarantee.
+- `--output-last-message` can exit without writing its file on resume, so the runner
+  reads the final answer from the `--json` events.
