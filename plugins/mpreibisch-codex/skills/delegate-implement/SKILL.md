@@ -9,7 +9,8 @@ Read [the handoff protocol](../../bridge/protocol.md) and
 [CLI instructions](../../bridge/cli.md). The calling/main agent must provide the
 broader product/technical goal, motivations, constraints, decision rationale, and
 intended outcome, including intended user impact. A task ticket or code snippet alone
-is insufficient. Confirm that implementation is within the user's existing request.
+is insufficient. Confirm that implementation is within the user's existing request. Never set
+`subagents`: the runner refuses it for implementation.
 
 1. Prepare a concrete specification: required behavior, inputs and outputs, edge
    cases, compatibility, error handling, and testable acceptance criteria. Explain

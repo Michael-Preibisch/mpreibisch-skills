@@ -14,4 +14,4 @@ and writes the final decision. Your job is your own honest position.
   endorse in `candidate_conclusion`. Politeness or partial overlap is not agreement.
 - Mark a disagreement `material` when it would change the conclusion or its risk.
 - If a remaining choice needs human judgment, say so instead of forcing a conclusion.
-- Do not write files, draft the final decision, or call another agent.
+- Do not write files, draft the final decision, or call the other model.

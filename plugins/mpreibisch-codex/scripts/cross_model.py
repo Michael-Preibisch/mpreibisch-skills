@@ -81,6 +81,8 @@ def prepare(request):
     if request["scope"]["external_side_effects"]:
         raise ValueError("external side effects must be handled separately by the main agent")
     implementation = request["skill"] == "delegate-implement"
+    if implementation and "subagents" in request:
+        raise ValueError("subagents is only for read-only skills; delegate-implement does not accept it")
     if bool(request["scope"]["write_paths"]) != implementation:
         raise ValueError("only delegate-implement requires and permits nonempty write_paths")
     if not implementation and request["task"]["verification_commands"]:
@@ -134,16 +136,28 @@ def build_command(target, request, schema_path, model=None, effort=None,
     """Build a new or resumed call from one flag list, so permissions repeat on every resume."""
     model, effort = select_model(target, request["skill"], model, effort)
     implementation = request["skill"] == "delegate-implement"
+    subagents = request.get("subagents")
     if target == "claude":
         tool_names = "Read,Glob,Grep" + (",Edit,Write,Bash" if implementation else "")
         allowed = ["Read", "Glob", "Grep"]
+        extra = []
+        if subagents:
+            # Sub-agents inherit the parent's tool cap; the custom agent also pins model and effort.
+            tool_names += ",Agent"
+            allowed.append("Agent")
+            reader = {"description": "Read-only helper for parts of the bridge assignment.",
+                      "prompt": "Answer the delegated question from the files you can read. Do not modify anything.",
+                      "tools": ["Read", "Glob", "Grep"], "model": subagents["model"]}
+            if "effort" in subagents:
+                reader["effort"] = subagents["effort"]
+            extra = ["--agents", json.dumps({"reader": reader})]
         if implementation:
             allowed.extend(["Edit", "Write"])
             allowed.extend(f"Bash({cmd})" for cmd in request["task"]["verification_commands"])
         command = ["claude", "--print", "--restricted", "--permission-mode", "dontAsk",
                    "--tools", tool_names, "--allowedTools", ",".join(allowed),
                    "--setting-sources", "", "--settings", '{"disableAllHooks":true}',
-                   "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
+                   "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}', *extra,
                    "--output-format", "json", "--json-schema", json.dumps(read_json(schema_path)),
                    "--resume" if resume else "--session-id", session_id]
     elif target == "codex":
@@ -154,9 +168,16 @@ def build_command(target, request, schema_path, model=None, effort=None,
                    "--ignore-user-config", "--ignore-rules",
                    "-c", "sandbox_workspace_write.network_access=false",
                    "-c", "web_search=\"disabled\"", "-c", "mcp_servers={}",
-                   "--disable", "apps", "--disable", "plugins", "--disable", "hooks",
-                   "--disable", "multi_agent", "--disable", "multi_agent_v2",
-                   "--json", "--output-schema", str(schema_path)]
+                   "--disable", "apps", "--disable", "plugins", "--disable", "hooks"]
+        if subagents:
+            # Spawned agents inherit the read-only sandbox and never-ask approval policy.
+            command.extend(["-c", "agents.default_subagent_model=" + json.dumps(subagents["model"])])
+            if "effort" in subagents:
+                command.extend(["-c", "agents.default_subagent_reasoning_effort="
+                                + json.dumps(subagents["effort"])])
+        else:
+            command.extend(["--disable", "multi_agent", "--disable", "multi_agent_v2"])
+        command.extend(["--json", "--output-schema", str(schema_path)])
         if not (Path(request["scope"]["workspace"]) / ".git").exists():
             command.append("--skip-git-repo-check")
     else:
@@ -362,9 +383,15 @@ def run(args):
         return 0
     if target == "claude":
         preflight_claude(workspace, output)
+    agents_rule = "Do not invoke another agent or cross-model skill. "
+    if "subagents" in request:
+        agents_rule = ("You may spawn read-only sub-agents of your own model family"
+                       + (" (agent type `reader`)" if target == "claude" else "")
+                       + " with their configured model and effort; do not override either. "
+                       "Never call the other model's CLI or a cross-model skill. ")
     prompt = "\n\n".join([
-        "You are the receiving agent for one bounded cross-model assignment. "
-        "Do not invoke another agent or cross-model skill. Follow the protocol and the "
+        "You are the receiving agent for one bounded cross-model assignment. " + agents_rule +
+        "Follow the protocol and the "
         "receiver brief below; the calling agent owns orchestration. If this session "
         "continues an earlier call, the latest request's context, scope, and permissions "
         "replace earlier ones. Return only JSON conforming to the provided response schema. "

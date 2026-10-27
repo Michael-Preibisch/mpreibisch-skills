@@ -311,6 +311,23 @@
         "candidate_conclusion"
       ],
       "additionalProperties": false
+    },
+    "subagents": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effort": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

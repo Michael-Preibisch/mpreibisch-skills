@@ -11,6 +11,12 @@ broader goal, motivations, constraints, decision rationale, and intended outcome
 Explain how this exploration supports the broader goal. A search query or file list
 alone is insufficient. Both agents remain read-only, including verification commands.
 
+If the user asks for receiver sub-agents, set `subagents` in the request (see
+[Sub-agents](../../bridge/cli.md#sub-agents)). For example, Claude asks Codex Astra xhigh
+with Terra 6.1 high sub-agents (`{"model": "gpt-6.1-terra", "effort": "high"}`), or Codex
+asks Claude Opus 5.5 high with Sonnet 5.5 high sub-agents
+(`{"model": "claude-sonnet-5-5", "effort": "high"}`). Sub-agents stay read-only.
+
 1. Choose one bounded lane with a clear question. Name its read paths or supplied
    sources, exclusions, evidence snapshot, time budget, and expected artifact. Examples
    include a call graph, dependency map, comparison of supplied sources, or an answer

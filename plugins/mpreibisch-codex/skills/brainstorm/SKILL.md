@@ -11,6 +11,12 @@ use `consensus` for that. Read [the handoff protocol](../../bridge/protocol.md) 
 goal, motivations, constraints, decision rationale, and intended outcome on every call,
 plus the user's ranking criteria. A topic alone is not enough. Both agents stay read-only.
 
+If the user asks for receiver sub-agents, set `subagents` in the request (see
+[Sub-agents](../../bridge/cli.md#sub-agents)). For example, Claude asks Codex Astra xhigh
+with Terra 6.1 high sub-agents (`{"model": "gpt-6.1-terra", "effort": "high"}`), or Codex
+asks Claude Opus 5.5 high with Sonnet 5.5 high sub-agents
+(`{"model": "claude-sonnet-5-5", "effort": "high"}`). Sub-agents stay read-only.
+
 Use one session file for the whole brainstorm (`--session-file "$HANDOFF/session.json"`),
 so the peer keeps its ideas and reasoning between turns. Each request uses phase `single`.
 
