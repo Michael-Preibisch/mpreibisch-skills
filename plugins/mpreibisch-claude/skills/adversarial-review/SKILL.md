@@ -11,6 +11,12 @@ broader goal, motivations, constraints, decision rationale, and intended outcome
 Do not forward only a diff, plan, or idea. Both agents remain read-only; do not fix
 code, reformat files, apply patches, or run tests that write project artifacts.
 
+If the user asks for receiver sub-agents, set `subagents` in the request (see
+[Sub-agents](../../bridge/cli.md#sub-agents)). For example, Claude asks Codex Astra xhigh
+with Terra 6.1 high sub-agents (`{"model": "gpt-6.1-terra", "effort": "high"}`), or Codex
+asks Claude Opus 5.5 high with Sonnet 5.5 high sub-agents
+(`{"model": "claude-sonnet-5-5", "effort": "high"}`). Sub-agents stay read-only.
+
 1. Identify the review target and its stable snapshot: plan text, idea, commit range,
    implementation files, or PR diff plus relevant surrounding code. Define read paths,
    exclusions, and expected findings. Include the intended behavior and alternatives

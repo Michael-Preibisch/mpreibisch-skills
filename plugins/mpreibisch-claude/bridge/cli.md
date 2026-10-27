@@ -89,9 +89,46 @@ and does not start another model.
 Effort flags follow the [Claude CLI reference](https://code.claude.com/docs/en/cli-reference)
 and the [Codex configuration reference](https://developers.openai.com/codex/config-reference).
 
+## Sub-agents
+
+By default the receiver works alone. To let it spawn read-only sub-agents of its own
+model family, add `subagents` to the request with a `model` and an optional `effort`.
+Only `delegate-explore`, `brainstorm`, `consensus`, and `adversarial-review` accept it;
+`delegate-implement` refuses it. Set it only when the user asks for receiver
+sub-agents. Without `effort`, the sub-agent model uses its own default.
+
+Claude asks Codex (Astra xhigh, sub-agents Terra 6.1 high): run with `--model gpt-6-astra
+--effort xhigh` and put this in the request:
+
+```json
+"subagents": {"model": "gpt-6.1-terra", "effort": "high"}
+```
+
+Codex asks Claude (Opus 5.5 high, sub-agents Sonnet 5.5 high): run with `--model
+claude-opus-5-5 --effort high` and put this in the request:
+
+```json
+"subagents": {"model": "claude-sonnet-5-5", "effort": "high"}
+```
+
+- Codex target: the runner drops the multi-agent disable flags and sets
+  `agents.default_subagent_model` and `agents.default_subagent_reasoning_effort`.
+  Spawned agents inherit the read-only sandbox and the `never` approval policy
+  ([subagents](https://developers.openai.com/codex/subagents)).
+- Claude target: the runner adds `Agent` to `--tools` and `--allowedTools` and defines
+  one `reader` agent through `--agents` with `Read`, `Glob`, `Grep`, the model, and the
+  effort ([sub-agents](https://code.claude.com/docs/en/sub-agents)). Every sub-agent,
+  including built-in types, gets at most the parent's `Read`, `Glob`, `Grep`, and
+  `Agent` tools.
+
+The receiver prompt asks it to keep the configured model and effort. Both CLIs let a
+spawn call override them, so this is an instruction, not a guarantee. Changing
+`subagents` on a resumed session is allowed: it stays read-only either way.
+
 ## Claude Code target
 
-Read-only calls expose only `Read`, `Glob`, and `Grep`, with `dontAsk` permissions.
+Read-only calls expose only `Read`, `Glob`, and `Grep` (plus `Agent` with `subagents`),
+with `dontAsk` permissions.
 Implementation calls add `Edit`, `Write`, and `Bash`; only the listed verification
 commands are pre-approved for Bash. Automatic hooks are disabled and configured MCP
 servers are excluded. Restricted mode confines file tools to the workspace. Local
@@ -122,8 +159,8 @@ Calls use `codex exec` (new) or `codex exec resume ID` (resumed), approval polic
 `never`, and `read-only` sandboxing. Implementation alone switches to `workspace-write`.
 `exec resume` has no sandbox flag, so `--ask-for-approval` and `--sandbox` go before
 `exec` in both shapes. Network access stays disabled; web search, apps, plugins, and
-hooks are disabled. The runner also passes the multi-agent disable flags, but some
-models keep their agent tools, so the no-recursion rule is enforced through
+hooks are disabled. Without `subagents`, the runner also passes the multi-agent disable
+flags, but some models keep their agent tools, so the no-spawn rule is enforced through
 instructions (see Known limits). `--disable apps` matters most: the
 sandbox covers shell commands only, and without it a read-only session still exposes
 connected app tools that can write. User configuration is excluded, including inherited
@@ -179,8 +216,8 @@ must be enforced against arbitrary code. Unsupported CLI versions fail closed.
 
 - Codex's model catalog sets the multi-agent version per model. On models such as
   `gpt-6-astra`, `--disable multi_agent` and `--disable multi_agent_v2` don't remove the
-  agent tools; the session only spawns agents when explicitly asked. The receiver prompt
-  forbids that, and shell access could reach another CLI anyway, so the
-  no-recursive-delegation rule is an instruction, not a guarantee.
+  agent tools; the session only spawns agents when explicitly asked. Without
+  `subagents`, the receiver prompt forbids that. Shell access could reach the other CLI
+  either way, so the no-recursive-delegation rule is an instruction, not a guarantee.
 - `--output-last-message` can exit without writing its file on resume, so the runner
   reads the final answer from the `--json` events.

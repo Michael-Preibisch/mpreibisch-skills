@@ -11,6 +11,12 @@ The calling/main agent must supply the broader goal, motivations, constraints,
 decision rationale, and intended outcome on every call. A question or diff alone
 is not enough. Both agents remain read-only, except for caller-owned scratch artifacts.
 
+If the user asks for receiver sub-agents, set `subagents` in the request (see
+[Sub-agents](../../bridge/cli.md#sub-agents)). For example, Claude asks Codex Astra xhigh
+with Terra 6.1 high sub-agents (`{"model": "gpt-6.1-terra", "effort": "high"}`), or Codex
+asks Claude Opus 5.5 high with Sonnet 5.5 high sub-agents
+(`{"model": "claude-sonnet-5-5", "effort": "high"}`). Sub-agents stay read-only.
+
 Run the whole consensus in one peer session: pass the same
 `--session-file "$HANDOFF/session.json"` on the assessment and on every exchange round.
 The peer then keeps its own investigation and reasoning between rounds.

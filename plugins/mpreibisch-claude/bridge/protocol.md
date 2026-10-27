@@ -2,8 +2,10 @@
 
 Read this protocol before invoking any cross-model skill. The calling agent owns the
 broader task, context, scope, and final answer. The receiving agent owns one bounded
-assignment. A delegate must not call another agent, invoke these skills recursively,
-or expand its own permissions. The receiving agent gets this protocol and a short brief
+assignment. A delegate must not call the other model, invoke these skills recursively,
+write anything, or expand its own permissions. It spawns no agents unless the request
+sets `subagents`; then it may spawn read-only sub-agents of its own model family
+(see [CLI instructions](cli.md#sub-agents)). The receiving agent gets this protocol and a short brief
 for its role from [receivers](receivers/) on every call; it never gets the caller's
 skill workflow.
 

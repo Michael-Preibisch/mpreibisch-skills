@@ -155,6 +155,40 @@ class HandoffTests(unittest.TestCase):
         impl = runner.build_command("codex", self.request, schema)
         self.assertEqual(impl[impl.index("--sandbox") + 1], "workspace-write")
 
+    def test_codex_subagents_replace_the_disable_flags(self):
+        schema = runner.schema_path("delegate-explore")
+        plain = runner.build_command("codex", self.request, schema)
+        self.assertIn("multi_agent", plain)
+        self.assertFalse(any(arg.startswith("agents.") for arg in plain))
+        self.request["subagents"] = {"model": "gpt-6.1-terra", "effort": "high"}
+        runner.prepare(self.request)
+        command = runner.build_command("codex", self.request, schema)
+        self.assertNotIn("multi_agent", command)
+        self.assertNotIn("multi_agent_v2", command)
+        self.assertIn('agents.default_subagent_model="gpt-6.1-terra"', command)
+        self.assertIn('agents.default_subagent_reasoning_effort="high"', command)
+        self.assertEqual(command[command.index("--sandbox") + 1], "read-only")
+
+    def test_claude_subagents_add_a_read_only_agent(self):
+        schema = runner.schema_path("delegate-explore")
+        plain = runner.build_command("claude", self.request, schema, session_id="s-1")
+        self.assertEqual(plain[plain.index("--tools") + 1], "Read,Glob,Grep")
+        self.assertNotIn("--agents", plain)
+        self.request["subagents"] = {"model": "claude-sonnet-5-5", "effort": "high"}
+        command = runner.build_command("claude", self.request, schema, session_id="s-1")
+        self.assertEqual(command[command.index("--tools") + 1], "Read,Glob,Grep,Agent")
+        self.assertEqual(command[command.index("--allowedTools") + 1], "Read,Glob,Grep,Agent")
+        reader = json.loads(command[command.index("--agents") + 1])["reader"]
+        self.assertEqual((reader["tools"], reader["model"], reader["effort"]),
+                         (["Read", "Glob", "Grep"], "claude-sonnet-5-5", "high"))
+
+    def test_delegate_implement_refuses_subagents(self):
+        self.request.update(skill="delegate-implement", subagents={"model": "claude-sonnet-5-5"})
+        self.request["scope"]["write_paths"] = ["src"]
+        with self.assertRaisesRegex(ValueError, "subagents is only for read-only skills; "
+                                                "delegate-implement does not accept it"):
+            runner.prepare(self.request)
+
     def test_brainstorm_is_read_only_and_every_skill_has_its_files(self):
         self.request["skill"] = "brainstorm"
         runner.prepare(self.request)
