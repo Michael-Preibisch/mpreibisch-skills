@@ -1,0 +1,17 @@
+{
+  "calibrated": false,
+  "input_template": "Task brief and acceptance criteria: ...\nFiles, lines touched, and relevant context: ...\nContract changes: ...\nSecurity-boundary changes: ...",
+  "questions": [
+    {
+      "type": "choice",
+      "name": "tier",
+      "instructions": "Choose the reasoning tier needed for the supplied task and impact. Consider behavior and affected boundaries, not line count alone. Missing impact context or uncertain contract or security effects favor frontier.",
+      "choices": [
+        {"value": "small", "description": "A routine, local change has a clear solution and no contract or security effects."},
+        {"value": "standard", "description": "A bounded change needs reasoning across files but preserves contracts and security boundaries."},
+        {"value": "frontier", "description": "Complex reasoning, uncertain impact, or contract or security changes require the strongest tier."}
+      ]
+    }
+  ],
+  "gate": {"any": ["tier=small>=0.85", "tier=standard>=0.85"]}
+}

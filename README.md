@@ -2,12 +2,19 @@
 
 Two installable plugins pair Codex and Claude Code through their CLIs. Each includes
 `consensus`, `adversarial-review`, `brainstorm`, `delegate-explore`, `delegate-implement`,
-the pinned `clear-writing` skill, `artifact-standards`, and `pr-review-ask`.
+the pinned `clear-writing` skill, `artifact-standards`, `pr-review-ask`, and `decisions`.
 
 | Calling host | Plugin | Receiving CLI | Installation |
 | --- | --- | --- | --- |
 | Codex | `mpreibisch-codex` | `claude` | [Codex README](plugins/mpreibisch-codex/README.md) |
 | Claude Code | `mpreibisch-claude` | `codex` | [Claude Code README](plugins/mpreibisch-claude/README.md) |
+
+`decisions` calls the OpenAI Decisions API for fixed judgments over supplied text.
+Both hosts can use it proactively for yes/no questions, labels, or fixed scores.
+It can gate an expensive polling or triage agent, with every uncertain result or
+error falling back to the LLM. It needs Python and an API key, without a peer CLI.
+Presets cover progress watching, review triage, failure retries, and model-tier routing.
+Uncalibrated preset gates log in shadow mode until you explicitly enable enforcement.
 
 `pr-review-ask` drafts a request to review one or more GitHub PRs in the user's own
 voice: motivation first, one line per PR, confirmed stacks kept visible, linked issues
@@ -55,7 +62,7 @@ call can resume. See the
 
 | Path | Contents |
 | --- | --- |
-| `plugins/mpreibisch-codex/` | Codex plugin, eight skills, shared bridge, and Claude CLI adapter |
+| `plugins/mpreibisch-codex/` | Codex plugin, nine skills, shared bridge, and Claude CLI adapter |
 | `plugins/mpreibisch-claude/` | Claude Code plugin, matching skills, shared bridge, and Codex CLI adapter |
 | `.agents/plugins/marketplace.json` | Codex marketplace manifest |
 | `.claude-plugin/marketplace.json` | Claude Code marketplace manifest |
@@ -94,12 +101,41 @@ claude plugin install mpreibisch-claude@mpreibisch-skills --scope user
 
 Start a new session in each host. In Codex, invoke `$consensus`, `$adversarial-review`,
 `$brainstorm`, `$delegate-explore`, `$delegate-implement`, `$clear-writing`,
-`$artifact-standards`, or `$pr-review-ask`.
+`$artifact-standards`, `$pr-review-ask`, or `$decisions`.
 In Claude Code, use `/mpreibisch-claude:consensus` and the corresponding namespaced
 skill names.
 The host READMEs above include examples. Repeat installation on each machine;
 relative marketplace paths let the clone live anywhere. A private repository requires
 GitHub access to clone. Installing a plugin does not authenticate the receiving CLI.
+
+## Decisions setup
+
+Install or update the plugin in each host, then start a new session.
+Enable marketplace auto-update in the host's plugin settings where supported.
+Both hosts discover `decisions` from its description and can use it without an explicit invocation.
+Skill discovery depends on the host; installation does not add a hook to every loop.
+
+Set `OPENAI_API_KEY` through your secret store in the environment that starts each host.
+Alternatively, configure a command that prints the key:
+
+```sh
+export DECISIONS_KEY_CMD='secret-reader read openai-api-key'
+```
+
+Replace `secret-reader read openai-api-key` with your local secret reader's command.
+The script runs an argument list, without shell expansion or pipes.
+Never paste a key into chat or source files. CLI login does not supply this API key.
+
+Ask either host to run the installed `decisions/scripts/decide.py --check` with Python.
+It validates configuration without a network call. With a clone, check the Codex copy:
+
+```sh
+python3 plugins/mpreibisch-codex/skills/decisions/scripts/decide.py --check
+```
+
+The [decisions skill](plugins/mpreibisch-codex/skills/decisions/SKILL.md) includes request examples,
+gate exit codes, and calibration instructions. Keep the LLM running in shadow mode
+until labeled examples support skipping routine cases.
 
 ## Default models
 
@@ -113,6 +149,7 @@ The defaults apply to the receiving agent in each cross-model call:
 All models and aliases supported by the receiving CLI and your account remain
 available. `artifact-standards` and `pr-review-ask` use the calling agent's model and
 start no call.
+`decisions` calls `gpt-6-luna` directly through the Decisions API.
 Ask the calling agent to use a specific model and effort, or pass
 `--model MODEL_ID --effort LEVEL` to the helper. With only `--model`, the helper omits
 effort so the selected model can use its own default. With only `--effort`, a new
@@ -139,9 +176,10 @@ claude plugin validate --strict .claude-plugin/marketplace.json
 The Python checks need no authenticated CLI or network. They validate both manifests
 against bundled schemas, package parity, skill references, and upstream file hashes.
 The delegation-context rule applies only to the five cross-model skills; `clear-writing`,
-`artifact-standards`, and `pr-review-ask` are exempt because they start no handoff.
+`artifact-standards`, `pr-review-ask`, and `decisions` are exempt because they start no handoff.
 Tests use stub CLIs to check permissions, session resume, context delivery, JSON
 extraction, failure handling, and round bounds without spending model tokens.
+Decisions tests use a local HTTP stub for request bodies, fail-open gates, and secret handling.
 Claude's own validator provides an additional host check when installed.
 
 Both CLIs must support the flags in [the CLI guide](plugins/mpreibisch-codex/bridge/cli.md).

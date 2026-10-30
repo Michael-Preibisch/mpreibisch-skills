@@ -1,0 +1,25 @@
+{
+  "calibrated": true,
+  "calibration_note": "An offline replay of 155 cycles skipped 10.3% of cycles and skipped none of 35 stalled or blocked cycles. This evidence does not establish calibration for another workflow.",
+  "input_template": "Goal and completion criteria: ...\nPrevious cycle: ...\nRecent events, changed files, checks, and errors: ...\nAgent's claimed status and work delivered: ...",
+  "questions": [
+    {
+      "type": "choice",
+      "name": "status",
+      "instructions": "Classify the agent's current progress using the supplied goal, completion criteria, and events. Use evidence of completed work, not promises or repeated status claims.",
+      "choices": [
+        {"value": "progressing", "description": "New useful work advances the goal, with no intervention needed."},
+        {"value": "stalled", "description": "No useful progress appears despite continued activity or elapsed time."},
+        {"value": "blocked", "description": "A missing prerequisite or explicit obstacle needs intervention."},
+        {"value": "error_loop", "description": "The agent repeats failures or ineffective fixes without progress."},
+        {"value": "done", "description": "Delivered work and checks satisfy the stated completion criteria."}
+      ]
+    },
+    {
+      "type": "predicate",
+      "name": "quality_flag",
+      "instructions": "Does the supplied evidence show a premature completion claim or hollow work? Flag done claims with unmet completion criteria, or claimed progress supported only by narration, placeholders, or cosmetic changes that do not advance the goal. Do not flag ordinary unfinished work that makes concrete progress."
+    }
+  ],
+  "gate": {"all": ["status=progressing>=0.9", "quality_flag<0.2"]}
+}

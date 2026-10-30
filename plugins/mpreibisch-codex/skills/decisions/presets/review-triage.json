@@ -1,0 +1,25 @@
+{
+  "calibrated": false,
+  "input_template": "Review bar and blocker criteria: ...\nFinding: ...\nRelevant diff hunk and context: ...\nPrior-round findings and resolutions: ...",
+  "questions": [
+    {
+      "type": "predicate",
+      "name": "blocking",
+      "instructions": "Does this finding meet the supplied review bar for blocking the change? Judge the finding against the diff and stated criteria. A blocker remains blocking even if an earlier round reported the same issue. Do not downgrade an unresolved blocker because it is a duplicate."
+    },
+    {
+      "type": "choice",
+      "name": "same_as_prior",
+      "instructions": "Compare the current finding with prior-round findings and fixes. Identify the underlying issue, not wording similarity. If no prior findings are supplied, classify it as new_issue.",
+      "choices": [
+        {"value": "same_issue", "description": "A prior finding reports the same underlying issue, without a new regression."},
+        {"value": "new_issue", "description": "The finding identifies a distinct issue absent from prior findings."},
+        {"value": "regression_from_fix", "description": "A prior fix introduced the issue described by this finding."}
+      ]
+    }
+  ],
+  "gate": {
+    "any": ["blocking<=0.05", "same_as_prior=same_issue>=0.9"],
+    "unless": ["blocking>=0.5"]
+  }
+}

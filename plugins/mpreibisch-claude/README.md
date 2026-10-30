@@ -4,6 +4,7 @@ Claude Code calls Codex for consensus, adversarial review, brainstorming, explor
 and scoped implementation, keeping one Codex session per task. `clear-writing`
 provides the same writing rules as the Codex package, `artifact-standards` the same
 HTML page standards, and `pr-review-ask` the same PR review-request format.
+`decisions` uses the OpenAI Decisions API for fixed judgments and can gate expensive agents.
 
 ## Install and authenticate
 
@@ -49,6 +50,24 @@ default. With `--effort` alone, a new session uses the workflow's model and a re
 session keeps its saved model. Use `--effort default` to omit the effort setting. See
 [model settings and examples](bridge/cli.md#models-and-effort).
 
+## Decisions setup
+
+The [decisions skill](skills/decisions/SKILL.md) also runs without a peer CLI.
+Install or update this plugin, enable marketplace auto-update where supported, and start a new session.
+Claude Code can use it proactively for fixed judgments in polling, triage, routing, and classification loops.
+
+Set `OPENAI_API_KEY` through your secret store in the environment that starts Claude Code.
+Alternatively, set `DECISIONS_KEY_CMD` to a command that prints only the key.
+The command runs as arguments without a shell. Never paste a key into chat or files.
+Claude Code login does not supply this API key.
+
+Ask Claude Code to resolve this installed package's `skills/decisions/scripts/decide.py` and run it with `--check`.
+The check makes no network call. The skill uses Python 3.10+ and `gpt-6-luna` through the API.
+Calibrate with labeled examples or shadow mode before skipping LLM calls.
+Every error falls back to the LLM. The skill documents gate conditions and private JSONL logs.
+Use `--preset progress-watch --gate` for the supplied watcher rule.
+Review, retry, and tier-routing presets default to shadow mode until calibrated or enforced.
+
 ## Examples
 
 Invoke the namespaced skills in Claude Code:
@@ -78,6 +97,9 @@ retry path works, for a teammate with no context on this service.
 /mpreibisch-claude:pr-review-ask Draft a review request for #4312 and #4315 for the
 platform team. They fix the retry budget; #4315 is stacked on #4312. Tag @ana on the
 second one.
+
+/mpreibisch-claude:decisions Classify these build events before the expensive watcher.
+Keep the LLM running in shadow mode until the thresholds are validated.
 ```
 
 The main agent fills the broader context before calling Codex. See

@@ -1,7 +1,7 @@
 {
   "name": "mpreibisch-codex",
-  "version": "1.4.0",
-  "description": "Cross-model consensus, review, brainstorming, exploration, implementation, clear writing, HTML artifact standards, and GitHub PR review requests.",
+  "version": "1.5.0",
+  "description": "Cross-model collaboration, clear writing, HTML artifact standards, GitHub PR review requests, and bounded judgments through the OpenAI Decisions API.",
   "author": {
     "name": "mpreibisch-skills contributors"
   },
@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "Mpreibisch skills for Codex",
     "shortDescription": "Collaborate with Claude Code and hold the house HTML standards.",
-    "longDescription": "Use Claude Code, in one persistent session per task, for independent consensus, critical review, brainstorming, bounded exploration, and implementation with full task context. Includes clear-writing, artifact-standards for every shareable HTML page, and pr-review-ask for GitHub PR review requests.",
+    "longDescription": "Use Claude Code, in one persistent session per task, for independent consensus, critical review, brainstorming, bounded exploration, and implementation with full task context. Includes clear-writing, artifact-standards, pr-review-ask, and decisions for bounded judgments through the OpenAI Decisions API.",
     "developerName": "mpreibisch-skills contributors",
     "category": "Productivity",
     "capabilities": [
