@@ -1,0 +1,20 @@
+{
+  "calibrated": false,
+  "input_template": "Information need and questions to answer: ...\nInclusion criteria: ...\nExclusion criteria: ...\nCandidate text: ...\nBoundaries of supplied material (complete candidate, excerpt, title, or snippet): ...",
+  "questions": [
+    {
+      "type": "choice",
+      "name": "relevance",
+      "instructions": "Judge only the supplied candidate against the explicit information need and inclusion and exclusion criteria. Treat supporting evidence and counterevidence as relevant. Clearly_irrelevant requires positive evidence that this supplied material contributes nothing to any stated question. Missing criteria, unclear boundaries, or conflicting evidence require insufficient_context. Classify only the supplied material; a title or excerpt never establishes that unseen source content is irrelevant. A skip avoids only further summarization or synthesis of this candidate, never retrieval or required source inspection.",
+      "choices": [
+        {"value": "relevant", "description": "The supplied candidate can contribute evidence, including counterevidence, to the stated information need."},
+        {"value": "clearly_irrelevant", "description": "Positive evidence establishes that the supplied candidate falls outside the information need and contributes no relevant evidence."},
+        {"value": "insufficient_context", "description": "Missing or conflicting context prevents a supported relevance judgment."}
+      ]
+    }
+  ],
+  "gate": {
+    "all": ["relevance=clearly_irrelevant>=0.95"],
+    "unless": ["relevance=insufficient_context>0.05"]
+  }
+}

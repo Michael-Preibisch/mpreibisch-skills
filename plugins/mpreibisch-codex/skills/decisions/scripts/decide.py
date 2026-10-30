@@ -433,7 +433,7 @@ def main():
     parser.add_argument("--choice", nargs=3, action="append", default=[], metavar=("NAME", "INSTRUCTIONS", "CHOICES_JSON"))
     parser.add_argument("--gate", nargs="?", const="", action="append", metavar="CONDITION",
                         help="Use preset rules, or require every explicit condition")
-    parser.add_argument("--enforce", action="store_true", help="Enforce an uncalibrated preset gate instead of shadowing it")
+    parser.add_argument("--enforce", action="store_true", help="Enforce an uncalibrated or overridden preset rule")
     parser.add_argument("--shadow", action="store_true", help="Log any gate's proposed decision and always run the LLM")
     parser.add_argument("--id", dest="record_id", help="Caller-supplied outcome id for offline evaluation")
     parser.add_argument("--log", metavar="FILE", help="Append answers and input metadata as JSONL")
@@ -477,6 +477,7 @@ def main():
         preset_rule = parse_rule(preset["gate"], questions) if preset else None
         rule = None
         rule_source = None
+        conditions = []
         if gating:
             conditions = [condition for condition in args.gate if condition]
             require(conditions or preset, "bare --gate requires a preset")
@@ -486,7 +487,8 @@ def main():
             else:
                 rule = preset_rule
                 rule_source = preset["gate"]
-        shadow = bool(gating and (args.shadow or (preset and not preset["calibrated"] and not args.enforce)))
+        shadow = bool(gating and (args.shadow or (preset and (conditions or not preset["calibrated"])
+                                                 and not args.enforce)))
         record["shadow"] = shadow
         config = {"model": MODEL, "questions_sha256": digest(questions),
                   "preset_sha256": digest(preset) if preset else None, "gate_rule": rule_source}
@@ -498,8 +500,8 @@ def main():
             state.mkdir(parents=True, exist_ok=True, mode=0o700)
             args.log = str(state / ((args.preset or "custom") + ".jsonl"))
         url = endpoint()
-        key = get_key(started + TIMEOUT)
         if args.check:
+            key = get_key(started + TIMEOUT)
             print('{"configured":true,"network_checked":false}')
             return 0
         if args.input:
@@ -509,6 +511,8 @@ def main():
             text = sys.stdin.read(INPUT_LIMIT + 1)
         require(len(text) <= INPUT_LIMIT, "input exceeds the API limit")
         record.update(input_length=len(text), input_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest())
+        require(text.strip(), "input must not be blank")
+        key = get_key(time.monotonic() + TIMEOUT)
         result = normalize(request({"model": MODEL, "input": text, "questions": questions},
                                    key, url, time.monotonic() + TIMEOUT), questions)
         config["model"] = result["model"]

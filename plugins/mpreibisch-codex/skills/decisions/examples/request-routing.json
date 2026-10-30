@@ -1,0 +1,22 @@
+{
+  "calibrated": false,
+  "template_note": "External template for --preset-file, not a bundled preset. Replace the example categories and descriptions with the caller's taxonomy. Define each handler, its limits, and the expensive fallback before use.",
+  "input_template": "Request text: ...\nCaller categories matching the configured choices: ...\nHandlers, capabilities, and exclusions for each category: ...\nExpensive fallback for uncertainty or mixed requests: ...",
+  "questions": [
+    {
+      "type": "choice",
+      "name": "route",
+      "instructions": "Classify the supplied request using the caller's categories matching the configured choices. Require a defined handler whose scope covers the whole request. Missing taxonomy, handler limits, or fallback requires insufficient_context. If a mixed request has no complete handler, use insufficient_context. A route never grants permission or discards part of the request. Uncertainty keeps the expensive routing pass.",
+      "choices": [
+        {"value": "question", "description": "A request for information fits the caller's question handler without changes or incident response."},
+        {"value": "change", "description": "A requested modification fits the caller's change handler without incident response."},
+        {"value": "incident", "description": "A report of a service problem fits the caller's incident handler, including its escalation requirements."},
+        {"value": "insufficient_context", "description": "Missing context, ambiguity, or a mixed request prevents selecting a handler for the complete request."}
+      ]
+    }
+  ],
+  "gate": {
+    "any": ["route=question>=0.95", "route=change>=0.95", "route=incident>=0.95"],
+    "unless": ["route=insufficient_context>0.05"]
+  }
+}

@@ -103,11 +103,11 @@ class Fixture(unittest.TestCase):
         self.assertEqual(result.returncode, 10)
         self.assertEqual(result.stdout, "RUN\n")
 
-    def call_with_response(self, flags, payload):
+    def call_with_response(self, flags, payload, input_text="Supplied workflow evidence."):
         stdout, stderr = io.StringIO(), io.StringIO()
         with patch.dict(os.environ, self.env, clear=True), \
                 patch.object(sys, "argv", [str(SCRIPT), *flags]), \
-                patch.object(sys, "stdin", io.StringIO("Supplied workflow evidence.")), \
+                patch.object(sys, "stdin", io.StringIO(input_text)), \
                 patch.object(decide, "request", return_value=payload) as transport, \
                 redirect_stdout(stdout), redirect_stderr(stderr):
             code = decide.main()
@@ -158,6 +158,20 @@ class TriggerContractTests(unittest.TestCase):
 
 
 class ConfigurationTests(Fixture):
+    def test_blank_input_fails_open_without_a_request(self):
+        del self.env["OPENAI_API_KEY"]
+        for text in ("", " \n\t "):
+            for flags in (["--questions", str(self.questions)], ["--preset", "progress-watch", "--gate", "--enforce"]):
+                with self.subTest(text=text, flags=flags):
+                    result, transport = self.call_with_response([*flags, "--log", str(self.log)], response(),
+                                                                input_text=text)
+                    self.assert_run(result)
+                    self.assertIn("input must not be blank", result.stderr)
+                    transport.assert_not_called()
+        record = json.loads(self.log.read_text().splitlines()[-1])
+        self.assertEqual(record["input_length"], len(text))
+        self.assertEqual(record["error"], "input must not be blank")
+
     def test_missing_key_and_key_command_failure_fail_open(self):
         del self.env["OPENAI_API_KEY"]
         self.assert_run(self.gate())
@@ -215,8 +229,9 @@ class DecisionLogicTests(unittest.TestCase):
 
 
 class PresetTests(Fixture):
-    def invoke(self, name, *flags, probabilities=None):
-        preset = json.loads((SCRIPT.parent.parent / "presets" / (name + ".json")).read_text())
+    def invoke(self, name, *flags, probabilities=None, selections=None):
+        path = name if isinstance(name, Path) else SCRIPT.parent.parent / "presets" / (name + ".json")
+        preset = json.loads(path.read_text())
         payload = response()
         payload["answers"] = []
         for question in preset["questions"]:
@@ -224,18 +239,29 @@ class PresetTests(Fixture):
             if question["type"] == "predicate":
                 answer["probability"] = (probabilities or {}).get(question["name"], 0.01)
             else:
-                choices = question["choices"]
-                answer.update(choice=choices[0]["value"], confidence=0.98,
-                              probabilities=[{"value": option["value"],
-                                              "probability": 0.98 if index == 0 else 0.02 / (len(choices) - 1)}
-                                             for index, option in enumerate(choices)])
+                is_score = question["type"] == "score"
+                options = question["levels" if is_score else "choices"]
+                key = "label" if is_score else "value"
+                selected = (selections or {}).get(question["name"], options[0][key])
+                answer.update(confidence=0.98,
+                              probabilities=[{key: option[key],
+                                              "probability": 0.98 if option[key] == selected else 0.02 / (len(options) - 1)}
+                                             for option in options])
+                if is_score:
+                    for index, option in enumerate(answer["probabilities"]):
+                        option["value"] = index / (len(options) - 1)
+                    answer["score"] = sum(option["value"] * option["probability"] for option in answer["probabilities"])
+                else:
+                    answer["choice"] = selected
             payload["answers"].append(answer)
-        return self.call_with_response(["--preset", name, *flags], payload)
+        source = ["--preset-file", str(path)] if isinstance(name, Path) else ["--preset", name]
+        return self.call_with_response([*source, *flags], payload)
 
     def test_preset_loading_sends_only_documented_api_fields(self):
         for name, names in [("progress-watch", ["status", "quality_flag"]),
-                            ("review-triage", ["blocking", "same_as_prior"]),
-                            ("failure-retry", ["failure_kind", "looping"]), ("tier-routing", ["tier"])]:
+                            ("review-triage", ["blocking", "same_as_prior", "handling"]),
+                            ("failure-retry", ["failure_kind", "looping"]), ("tier-routing", ["tier"]),
+                            ("relevance-filter", ["relevance"])]:
             with self.subTest(preset=name):
                 result, transport = self.invoke(name)
                 self.assertEqual(result.returncode, 0)
@@ -251,42 +277,98 @@ class PresetTests(Fixture):
         self.assert_run(self.call("--gate"))
 
     def test_shadow_logs_candidates_enforcement_preserves_blocker_and_loop_guards(self):
-        for name in ("review-triage", "failure-retry", "tier-routing"):
+        for path in (SCRIPT.parent.parent / "presets").glob("*.json"):
+            name = path.stem
+            selections = {"relevance": "clearly_irrelevant"}
             with self.subTest(preset=name):
-                result, _ = self.invoke(name, "--gate")
+                self.assertIs(decide.load_preset(name)["calibrated"], False)
+                result, _ = self.invoke(name, "--gate", selections=selections)
                 self.assert_run(result)
                 path = self.root / "state/decisions" / (name + ".jsonl")
                 record = json.loads(path.read_text())
                 self.assertTrue(record["shadow"])
                 self.assertTrue(record["rule_passed"])
                 self.assertEqual(record["gate"], "RUN")
-                result, _ = self.invoke(name, "--gate", "--enforce", "--log", str(self.log))
+                result, _ = self.invoke(name, "--gate", "--enforce", "--log", str(self.log), selections=selections)
                 self.assertEqual((result.returncode, result.stdout), (0, "SKIP\n"))
-        result, _ = self.invoke("progress-watch", "--gate")
-        self.assertEqual((result.returncode, result.stdout), (0, "SKIP\n"))
         for blocking in (0.5, 0.95):
             for condition in ([], ["same_as_prior=same_issue>=0.9"]):
                 result, _ = self.invoke("review-triage", "--gate", *condition, "--enforce",
                                         probabilities={"blocking": blocking})
                 self.assert_run(result)
-        result, _ = self.invoke("failure-retry", "--gate", "--enforce", probabilities={"looping": 0.9})
+        for looping, expected in [(0.05, "SKIP"), (0.1, "RUN"), (0.9, "RUN")]:
+            for condition in ([], ["failure_kind=transient_capacity_or_timeout>=0.5"]):
+                result, _ = self.invoke("failure-retry", "--gate", *condition, "--enforce",
+                                        probabilities={"looping": looping})
+                self.assertEqual((result.returncode, result.stdout), (0 if expected == "SKIP" else 10, expected + "\n"))
+
+    def test_rule_overrides_default_to_shadow_even_for_calibrated_sources(self):
+        preset = {"calibrated": True, "input_template": "Workflow evidence: ...", "questions": QUESTIONS,
+                  "gate": {"all": ["status=progressing>=0.9"], "unless": ["quality_flag>=0.2"]}}
+        path = self.root / "calibrated.json"
+        path.write_text(json.dumps(preset))
+        sources = (["--preset-file", str(path)], ["--preset", "progress-watch"])
+        for source in sources:
+            with self.subTest(source=source), patch.object(decide, "load_preset", return_value=preset):
+                result, _ = self.call_with_response([*source, "--gate", "--log", str(self.log)], response())
+                self.assertEqual((result.returncode, result.stdout), (0, "SKIP\n"))
+                for enforce in ([], ["--enforce"]):
+                    result, _ = self.call_with_response([*source, "--gate", "status=progressing>=0.8", *enforce,
+                                                        "--log", str(self.log)], response())
+                    record = json.loads(self.log.read_text().splitlines()[-1])
+                    self.assertTrue(record["rule_passed"])
+                    self.assertEqual(record["shadow"], not bool(enforce))
+                    self.assertEqual((result.returncode, result.stdout), (0, "SKIP\n") if enforce else (10, "RUN\n"))
+
+    def test_quality_exclusion_survives_threshold_override(self):
+        for quality_flag in (0.2, 0.8):
+            result, _ = self.invoke("progress-watch", "--gate", "status=progressing>=0.5", "--enforce",
+                                    probabilities={"quality_flag": quality_flag})
+            self.assert_run(result)
+            self.assertEqual(result.stderr, "")
+
+    def test_insufficient_evidence_keeps_the_expensive_path_even_with_overrides(self):
+        for name, question, value in [("progress-watch", "status", "insufficient_evidence"),
+                                      ("review-triage", "same_as_prior", "insufficient_evidence"),
+                                      ("review-triage", "handling", "insufficient_evidence"),
+                                      ("review-triage", "handling", "needs_coordinator"),
+                                      ("failure-retry", "failure_kind", "insufficient_evidence"),
+                                      ("tier-routing", "tier", "insufficient_context"),
+                                      ("relevance-filter", "relevance", "insufficient_context")]:
+            for condition in ([], [f"{question}={value}>=0.9"]):
+                with self.subTest(preset=name, question=question, condition=condition):
+                    result, _ = self.invoke(name, "--gate", *condition, "--enforce", selections={question: value})
+                    self.assert_run(result)
+                    self.assertEqual(result.stderr, "")
+        result, _ = self.invoke("tier-routing", "--gate", "--enforce", selections={"tier": "frontier"})
+        self.assert_run(result)
+        result, _ = self.invoke("relevance-filter", "--gate", "--enforce", selections={"relevance": "relevant"})
         self.assert_run(result)
 
     def test_confident_duplicate_with_uncertain_blocker_never_skips(self):
-        preset = decide.load_preset("review-triage")
-        payload = response()
-        payload["answers"] = [
-            {"type": "predicate", "name": "blocking", "probability": 0.4},
-            {"type": "choice", "name": "same_as_prior", "choice": "same_issue", "confidence": 0.95,
-             "probabilities": [{"value": "same_issue", "probability": 0.95},
-                               {"value": "new_issue", "probability": 0.04},
-                               {"value": "regression_from_fix", "probability": 0.01}]}]
-        self.assertEqual([answer["name"] for answer in payload["answers"]],
-                         [question["name"] for question in preset["questions"]])
         for condition in ([], ["same_as_prior=same_issue>=0.9"]):
-            result, _ = self.call_with_response(["--preset", "review-triage", "--gate", *condition, "--enforce"], payload)
-            self.assert_run(result)
-            self.assertEqual(result.stderr, "")
+            for probabilities, selections in [({"blocking": 0.4}, {}), ({}, {"handling": "needs_coordinator"})]:
+                result, _ = self.invoke("review-triage", "--gate", *condition, "--enforce",
+                                        probabilities=probabilities, selections=selections)
+                self.assert_run(result)
+                self.assertEqual(result.stderr, "")
+
+    def test_external_examples_load_and_build_request_bodies(self):
+        for name in ("request-routing", "severity-score"):
+            path = SCRIPT.parent.parent / "examples" / (name + ".json")
+            with self.subTest(example=path.name):
+                preset = decide.load_preset(path=path)
+                result, transport = self.invoke(path, "--gate", "--log", str(self.log),
+                                                probabilities={"routine_handling_sufficient": 0.99})
+                self.assert_run(result)
+                self.assertEqual(result.stderr, "")
+                body = transport.call_args.args[0]
+                self.assertEqual(set(body), {"model", "input", "questions"})
+                self.assertEqual(body["questions"], preset["questions"])
+                record = json.loads(self.log.read_text().splitlines()[-1])
+                self.assertTrue(record["shadow"] and record["rule_passed"])
+                self.assertEqual([answer["type"] for answer in record["answers"]],
+                                 [question["type"] for question in preset["questions"]])
 
     def test_portable_presets_and_explicit_shadow_preserve_provenance(self):
         path = self.root / "local-preset.json"

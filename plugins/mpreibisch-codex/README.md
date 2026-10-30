@@ -64,10 +64,14 @@ The check makes no network call. The [decisions skill](skills/decisions/SKILL.md
 question formats, gate conditions, and private JSONL logs. Calibrate with labeled examples
 or shadow mode before skipping LLM calls. Every error falls back to the LLM.
 Use `--preset progress-watch --gate` for the supplied watcher rule.
-Review, retry, and tier-routing presets default to shadow mode until calibrated or enforced.
+All bundled presets, including the watcher and relevance filter, default to shadow mode until locally evaluated and enforced.
+Overridden preset rules default to shadow even when the source is calibrated; `--enforce` opts in after local evaluation.
+The [authoring guide](skills/decisions/references/authoring.md) defines evidence and fallbacks.
+[External templates](skills/decisions/examples/README.md) show caller-defined request routing and severity rubrics.
 Presets are optional: fixed judgments over sufficient supplied text can use custom questions.
 Keep local configuration with `--preset-file PATH`; `--shadow` logs any gate while returning `RUN`.
 Use `report --log FILE --labels FILE` to compare proposals with independent outcome IDs offline.
+The binary report evaluates one defined skip decision, not routing labels or tier adequacy.
 The skill includes deterministic checks before API calls; the caller retains loop state and scheduling.
 
 ## Examples

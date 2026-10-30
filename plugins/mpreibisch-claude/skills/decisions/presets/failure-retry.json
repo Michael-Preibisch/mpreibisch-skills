@@ -1,26 +1,27 @@
 {
   "calibrated": false,
-  "input_template": "Attempted operation and expected result: ...\nError text or recent review verdicts: ...\nPrevious attempts, fixes, and outcomes: ...",
+  "input_template": "Attempted operation and expected result: ...\nError text or recent review verdicts: ...\nComplete attempt history, fixes, and outcomes (explicitly first attempt if applicable): ...\nCaller-established authorization and remaining retry budget: ...\nRequired delay and evidence it has elapsed: ...\nReplay safety, side effects, and known completion state: ...",
   "questions": [
     {
       "type": "choice",
       "name": "failure_kind",
-      "instructions": "Classify the failure using the supplied evidence. Reserve transient_capacity_or_timeout for explicit capacity, rate-limit, temporary availability, or timeout evidence. Do not assume a deterministic code failure is transient.",
+      "instructions": "Before classification, the caller must establish authorization, a remaining retry budget, any required delay, and replay safety. Require the complete attempt history, including an explicit first attempt when applicable. Choose insufficient_evidence if these prerequisites are missing, conflicting, or unmet. A timed-out write with unknown completion requires diagnosis, never automatic replay. Reserve transient_capacity_or_timeout for positive evidence of a temporary condition and a safe bounded retry without code changes. A timeout alone does not establish a transient cause or replay safety. Do not assume a deterministic defect is transient. Classification never grants authorization.",
       "choices": [
-        {"value": "transient_capacity_or_timeout", "description": "Temporary service capacity or a timeout makes another attempt plausible without a code change."},
+        {"value": "transient_capacity_or_timeout", "description": "Evidence supports a temporary condition and the caller has established a safe, authorized, bounded retry."},
         {"value": "flaky_test", "description": "Evidence shows a test intermittently fails on unchanged code."},
         {"value": "real_defect", "description": "A code or logic defect needs correction before another attempt."},
-        {"value": "environment", "description": "Missing credentials, tools, configuration, or prerequisites prevent the operation."}
+        {"value": "environment", "description": "Missing credentials, tools, configuration, or prerequisites prevent the operation."},
+        {"value": "insufficient_evidence", "description": "The cause, history, or caller-established retry prerequisites are missing, conflicting, or unmet."}
       ]
     },
     {
       "type": "predicate",
       "name": "looping",
-      "instructions": "Does the supplied attempt or review history show the same underlying problem recurring across rounds despite retries or patches? A single failure without recurrence is not a loop."
+      "instructions": "Does the supplied attempt or review history show the same underlying problem recurring across rounds despite retries or patches? An explicitly documented first attempt is not a loop. Missing history does not establish the absence of recurrence."
     }
   ],
   "gate": {
     "all": ["failure_kind=transient_capacity_or_timeout>=0.9"],
-    "unless": ["looping>=0.9"]
+    "unless": ["looping>0.05", "failure_kind=insufficient_evidence>0.05"]
   }
 }
