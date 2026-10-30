@@ -117,7 +117,8 @@ fi
 
 Replace `run_llm_watcher` with the workflow's existing expensive step.
 Repeat `--gate CONDITION` for custom conditions joined with AND.
-Explicit conditions replace the preset's thresholds but retain its `unless` exclusions, including quality, blockers, loops, and uncertainty.
+Explicit conditions replace the preset's `all` conditions or `any` alternatives but retain its `unless` exclusions.
+Overrides can tighten those exclusions but cannot loosen them; review-triage's routine-handling threshold cannot fall below `0.95`.
 An overridden preset rule defaults to shadow, even when its source says `calibrated: true`. Use `--enforce` only after local evaluation.
 Preset rules use `all` for AND, `any` for OR, and `unless` for conditions that forbid skipping.
 Conditions support `<`, `<=`, `>`, and `>=`.
@@ -141,7 +142,8 @@ A log failure runs the LLM.
 Keep the LLM running while collecting shadow results. Match its answers by the caller's `--id`.
 Label representative examples from actual evidence and compare disagreements.
 Keep reusable configuration in an external preset. After validating thresholds, set its `calibrated` field to `true`, or pass `--enforce`.
-Use `--shadow` for custom gates until labeled examples support enforcement.
+An ad hoc `--gate` without a preset enforces immediately.
+Add `--shadow` until labeled examples support enforcement.
 Historical replay results are example evidence; confirm performance locally. Recheck after changing questions, options, rules, models, or workflow evidence.
 
 `--log FILE` appends one JSONL record per call, including failures after argument parsing.

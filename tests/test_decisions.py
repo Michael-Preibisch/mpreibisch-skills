@@ -159,6 +159,7 @@ class TriggerContractTests(unittest.TestCase):
 
 class ConfigurationTests(Fixture):
     def test_blank_input_fails_open_without_a_request(self):
+        del self.env["OPENAI_API_KEY"]
         for text in ("", " \n\t "):
             for flags in (["--questions", str(self.questions)], ["--preset", "progress-watch", "--gate", "--enforce"]):
                 with self.subTest(text=text, flags=flags):
@@ -167,7 +168,9 @@ class ConfigurationTests(Fixture):
                     self.assert_run(result)
                     self.assertIn("input must not be blank", result.stderr)
                     transport.assert_not_called()
-        self.assertEqual(json.loads(self.log.read_text().splitlines()[-1])["input_length"], len(text))
+        record = json.loads(self.log.read_text().splitlines()[-1])
+        self.assertEqual(record["input_length"], len(text))
+        self.assertEqual(record["error"], "input must not be blank")
 
     def test_missing_key_and_key_command_failure_fail_open(self):
         del self.env["OPENAI_API_KEY"]
@@ -330,6 +333,7 @@ class PresetTests(Fixture):
                                       ("review-triage", "handling", "insufficient_evidence"),
                                       ("review-triage", "handling", "needs_coordinator"),
                                       ("failure-retry", "failure_kind", "insufficient_evidence"),
+                                      ("tier-routing", "tier", "insufficient_context"),
                                       ("relevance-filter", "relevance", "insufficient_context")]:
             for condition in ([], [f"{question}={value}>=0.9"]):
                 with self.subTest(preset=name, question=question, condition=condition):

@@ -500,8 +500,8 @@ def main():
             state.mkdir(parents=True, exist_ok=True, mode=0o700)
             args.log = str(state / ((args.preset or "custom") + ".jsonl"))
         url = endpoint()
-        key = get_key(started + TIMEOUT)
         if args.check:
+            key = get_key(started + TIMEOUT)
             print('{"configured":true,"network_checked":false}')
             return 0
         if args.input:
@@ -512,6 +512,7 @@ def main():
         require(len(text) <= INPUT_LIMIT, "input exceeds the API limit")
         record.update(input_length=len(text), input_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest())
         require(text.strip(), "input must not be blank")
+        key = get_key(time.monotonic() + TIMEOUT)
         result = normalize(request({"model": MODEL, "input": text, "questions": questions},
                                    key, url, time.monotonic() + TIMEOUT), questions)
         config["model"] = result["model"]
