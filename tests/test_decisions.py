@@ -320,6 +320,33 @@ class PresetTests(Fixture):
 
 
 class ReportTests(Fixture):
+    def test_report_counts_pre_configuration_errors_and_keeps_valid_records(self):
+        self.assert_run(self.call("--preset", "missing-preset", "--gate", "--id", "early-error", "--log", str(self.log)))
+        self.assertNotIn("model", json.loads(self.log.read_text()))
+        self.call_with_response(["--questions", str(self.questions), "--gate", "status=progressing>=0.9",
+                                 "--shadow", "--id", "a", "--log", str(self.log)], response())
+        labels = self.root / "labels.jsonl"
+        labels.write_text('{"id":"a","needed":false}\n')
+        result = self.call("report", "--log", str(self.log), "--labels", str(labels))
+        self.assertEqual(result.returncode, 0)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["errors"], 1)
+        self.assertEqual(len(report["configurations"]), 1)
+        self.assertEqual(report["configurations"][0]["proposed_skips"], 1)
+
+    def test_report_skips_unidentified_shadow_records_and_counts_them(self):
+        for flags in ([], ["--id", "a"]):
+            self.call_with_response(["--questions", str(self.questions), "--gate", "status=progressing>=0.9",
+                                     "--shadow", "--log", str(self.log), *flags], response())
+        labels = self.root / "labels.jsonl"
+        labels.write_text('{"id":"a","needed":false}\n')
+        result = self.call("report", "--log", str(self.log), "--labels", str(labels))
+        self.assertEqual(result.returncode, 0)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["unjoinable"], 1)
+        self.assertEqual(report["configurations"][0]["records"], 1)
+        self.assertEqual(report["configurations"][0]["proposed_skips"], 1)
+
     def test_report_joins_independent_labels_and_separates_rules_without_network(self):
         for item_id, p in (("a", 0.95), ("b", 0.99), ("c", 0.85), ("d", 0.98)):
             result, _ = self.call_with_response(["--questions", str(self.questions), "--gate", "status=progressing>=0.9",
@@ -357,7 +384,11 @@ class ReportTests(Fixture):
         labels = self.root / "labels.jsonl"
         labels.write_text('{"id":"a","needed":true}\n{"id":"a","needed":false}\n')
         before = self.log.read_text()
-        self.assert_run(self.call("report", "--log", str(self.log), "--labels", str(labels)))
+        result = self.call("report", "--log", str(self.log), "--labels", str(labels))
+        self.assertEqual(result.returncode, 2)
+        self.assertNotEqual(result.returncode, decide.RUN)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("Report failed: labels need unique nonempty ids", result.stderr)
         self.assertEqual(self.log.read_text(), before)
 
 

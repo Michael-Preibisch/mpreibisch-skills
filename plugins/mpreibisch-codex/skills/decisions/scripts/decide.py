@@ -341,9 +341,19 @@ def build_report(log_path, labels_path):
         require(type(label.get("needed")) is bool, "labels need a boolean needed field")
         labels[item_id] = label["needed"]
     groups, seen, matched_ids = {}, set(), set()
+    errors = unjoinable = 0
     for record in read_jsonl(log_path):
+        is_error = bool(record.get("error"))
+        errors += is_error
         item_id = record.get("id")
-        require(isinstance(item_id, str) and item_id.strip(), "report requires caller-supplied ids in gate logs")
+        if not isinstance(item_id, str) or not item_id.strip():
+            unjoinable += 1
+            continue
+        if item_id in labels:
+            matched_ids.add(item_id)
+        if is_error and not all(key in record for key in
+                                ("model", "questions_sha256", "preset_sha256", "gate_rule", "config_sha256")):
+            continue
         config = {key: record[key] for key in ("model", "questions_sha256", "preset_sha256", "gate_rule")}
         require(isinstance(config["model"], str) and isinstance(config["gate_rule"], dict),
                 "report requires configuration provenance and a gate rule")
@@ -361,8 +371,7 @@ def build_report(log_path, labels_path):
         group["records"] += 1
         if item_id in labels:
             group["labeled_records"] += 1
-            matched_ids.add(item_id)
-        if record.get("error"):
+        if is_error:
             group["errors"] += 1
             continue
         answers = record["answers"]
@@ -409,7 +418,8 @@ def build_report(log_path, labels_path):
                     varied_cases.append((varied, answers, needed))
                 group["thresholds"].append({"threshold": threshold, **counts(varied_cases)})
         results.append(group)
-    return {"configurations": results, "unmatched_labels": len(set(labels) - matched_ids)}
+    return {"configurations": results, "unmatched_labels": len(set(labels) - matched_ids),
+            "errors": errors, "unjoinable": unjoinable}
 
 
 def main():
@@ -434,12 +444,26 @@ def main():
     record = {"input_length": None, "input_sha256": None, "answers": [], "gate": "RUN"}
     try:
         if sys.argv[1:2] == ["report"]:
-            report_parser = Parser(description="Report proposed skips against independent JSONL outcome labels")
-            report_parser.add_argument("--log", required=True)
-            report_parser.add_argument("--labels", required=True)
-            report_args = report_parser.parse_args(sys.argv[2:])
-            print(encode(build_report(report_args.log, report_args.labels), os.environ.get("OPENAI_API_KEY", "").strip()))
-            return 0
+            report_key = os.environ.get("OPENAI_API_KEY", "").strip()
+            try:
+                report_parser = Parser(description="Report proposed skips against independent JSONL outcome labels")
+                report_parser.add_argument("--log", required=True)
+                report_parser.add_argument("--labels", required=True)
+                report_args = report_parser.parse_args(sys.argv[2:])
+                print(encode(build_report(report_args.log, report_args.labels), report_key))
+                return 0
+            except (Exception, KeyboardInterrupt) as error:
+                if isinstance(error, DecisionError):
+                    reason = str(error)
+                elif isinstance(error, OSError):
+                    reason = "cannot read log or labels file"
+                elif isinstance(error, json.JSONDecodeError):
+                    reason = "log or labels contain invalid JSON"
+                else:
+                    reason = "invalid log or label record"
+                message = "Report failed: " + reason
+                print(message.replace(report_key, "[REDACTED]") if report_key else message, file=sys.stderr)
+                return 2
         args = parser.parse_args()
         record["id"] = args.record_id
         gating = args.gate is not None

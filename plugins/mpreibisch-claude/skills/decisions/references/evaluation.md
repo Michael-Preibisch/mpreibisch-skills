@@ -16,6 +16,7 @@ Replace `item-1` with the caller's identifier for this evidence and independentl
 `--shadow` overrides enforcement and always prints `RUN`, including on errors.
 The existing step must still run. For a report, give each item a unique ID within a configuration.
 The same ID can compare configurations against the same independent outcome.
+Pass `--id` and a dedicated `--log` per workflow when you plan to run `report`.
 
 Logs omit full input and credentials. They record normalized answers, `rule_passed`, actual gate output, input hash, and usage.
 Configuration provenance contains `model`, `questions_sha256`, `preset_sha256`, `gate_rule`, and `config_sha256`.
@@ -43,8 +44,10 @@ python3 /ABSOLUTE/SKILL/DIRECTORY/scripts/decide.py report --log decisions.jsonl
 
 The report reads files only. It needs no API key and makes no network call.
 It joins by `id`, not input hash or line position. It rejects duplicate label IDs and duplicate IDs within a configuration.
-It requires gate logs with IDs and configuration provenance; old logs without those fields need a fresh shadow run.
-Malformed records fail the report rather than silently changing counts. Failures never append to the source log.
+Records without a usable ID are skipped and counted as `unjoinable`.
+Pre-configuration failures count toward the top-level `errors` total without entering a configuration group.
+Other joined records require gate configuration provenance; malformed records fail the report.
+Report failures print a message on stderr and exit `2`, with no `RUN` output or changes to the source log.
 
 Each configuration reports these fields:
 
@@ -60,6 +63,7 @@ Each configuration reports these fields:
 Threshold rows vary only the main condition's threshold. Other conditions and safety guards stay fixed.
 The grid is fixed and includes the recorded threshold. No threshold is selected, fitted, or written back to a preset.
 `unmatched_labels` counts label IDs absent from the logs.
+Top-level `errors` counts all error records, including unjoinable ones; a record can contribute to both totals.
 Missing labels and API failures are not evidence of safety.
 
 A recorded `SKIP` is not proof an expensive turn was avoided. Check the caller's actual branch execution separately.
