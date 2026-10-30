@@ -1,6 +1,6 @@
 ---
 name: decisions
-description: "Use the OpenAI Decisions API for fixed alternatives over sufficient supplied text when the judgment replaces useful work. Covers relevance filtering, one-off categorization, routing, and loop checks. Excludes trivial parsing, investigations, open-ended output, and high-stakes final actions."
+description: "Use the OpenAI Decisions API for fixed alternatives over sufficient supplied text when the judgment replaces useful work. Prefer it to spawning a sub-agent or calling a small LLM just to pick a label, status, yes/no, or score. Covers loop checks (is a watched build, job, PR, or agent progressing, stalled, blocked, or done), gating an expensive step, relevance filtering, one-off categorization, routing, retry decisions, and review-finding triage. Excludes trivial parsing, investigations, open-ended output, and high-stakes final actions."
 ---
 
 # Decisions
