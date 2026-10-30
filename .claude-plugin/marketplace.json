@@ -7,10 +7,10 @@
     {
       "name": "mpreibisch-claude",
       "source": "./plugins/mpreibisch-claude",
-      "description": "Cross-model collaboration with Codex, clear-writing, HTML artifact standards, and GitHub PR review requests."
+      "description": "Cross-model collaboration with Codex, clear-writing, HTML artifact standards, GitHub PR review requests, and the OpenAI Decisions API."
     }
   ],
   "metadata": {
-    "description": "Personal cross-model collaboration, clear-writing, HTML artifact standards, and GitHub PR review requests for Claude Code."
+    "description": "Personal cross-model collaboration, clear-writing, HTML artifact standards, GitHub PR review requests, and the OpenAI Decisions API for Claude Code."
   }
 }

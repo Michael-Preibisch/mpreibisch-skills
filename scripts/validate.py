@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CODEX = ROOT / "plugins/mpreibisch-codex"
 CLAUDE = ROOT / "plugins/mpreibisch-claude"
 CROSS_MODEL_SKILLS = {"consensus", "adversarial-review", "delegate-explore", "delegate-implement", "brainstorm"}
-SKILLS = CROSS_MODEL_SKILLS | {"clear-writing", "artifact-standards", "pr-review-ask"}
+SKILLS = CROSS_MODEL_SKILLS | {"clear-writing", "artifact-standards", "pr-review-ask", "decisions"}
 
 
 def load_runner():

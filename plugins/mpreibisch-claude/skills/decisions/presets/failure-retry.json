@@ -1,0 +1,26 @@
+{
+  "calibrated": false,
+  "input_template": "Attempted operation and expected result: ...\nError text or recent review verdicts: ...\nPrevious attempts, fixes, and outcomes: ...",
+  "questions": [
+    {
+      "type": "choice",
+      "name": "failure_kind",
+      "instructions": "Classify the failure using the supplied evidence. Reserve transient_capacity_or_timeout for explicit capacity, rate-limit, temporary availability, or timeout evidence. Do not assume a deterministic code failure is transient.",
+      "choices": [
+        {"value": "transient_capacity_or_timeout", "description": "Temporary service capacity or a timeout makes another attempt plausible without a code change."},
+        {"value": "flaky_test", "description": "Evidence shows a test intermittently fails on unchanged code."},
+        {"value": "real_defect", "description": "A code or logic defect needs correction before another attempt."},
+        {"value": "environment", "description": "Missing credentials, tools, configuration, or prerequisites prevent the operation."}
+      ]
+    },
+    {
+      "type": "predicate",
+      "name": "looping",
+      "instructions": "Does the supplied attempt or review history show the same underlying problem recurring across rounds despite retries or patches? A single failure without recurrence is not a loop."
+    }
+  ],
+  "gate": {
+    "all": ["failure_kind=transient_capacity_or_timeout>=0.9"],
+    "unless": ["looping>=0.9"]
+  }
+}
