@@ -1,14 +1,14 @@
 {
   "calibrated": false,
-  "input_template": "Task brief and acceptance criteria: ...\nFiles, lines touched, and relevant context: ...\nContract changes: ...\nSecurity-boundary changes: ...",
+  "input_template": "Task brief and acceptance criteria: ...\nExplicit user model choice, or none: ...\nCaller-defined small/standard/frontier mapping to available models and capabilities: ...\nRelevant code, affected boundaries, and impact evidence: ...\nContract and security effects: ...\nAmbiguities, unknowns, and difficult reasoning: ...",
   "questions": [
     {
       "type": "choice",
       "name": "tier",
-      "instructions": "Choose the reasoning tier needed for the supplied task and impact. Consider behavior and affected boundaries, not line count alone. Missing impact context or uncertain contract or security effects favor frontier.",
+      "instructions": "Choose a tier using the caller-defined mapping to available model capabilities and the task's reasoning needs. Require the brief, acceptance criteria, impact evidence, and ambiguity notes. Missing mapping, conflicting evidence, difficult reasoning beyond cheaper capabilities, or uncertain contract or security effects require frontier. A small local edit can require difficult reasoning; file or line counts do not establish adequacy. An explicit user model choice takes precedence and this result must never replace it. If the choice cannot be mapped or respected, use frontier for coordinator handling.",
       "choices": [
-        {"value": "small", "description": "A routine, local change has a clear solution and no contract or security effects."},
-        {"value": "standard", "description": "A bounded change needs reasoning across files but preserves contracts and security boundaries."},
+        {"value": "small", "description": "Positive evidence shows the mapped small model can handle the routine task with no contract or security effects."},
+        {"value": "standard", "description": "Positive evidence shows the mapped standard model can handle the bounded reasoning while preserving contracts and security boundaries."},
         {"value": "frontier", "description": "Complex reasoning, uncertain impact, or contract or security changes require the strongest tier."}
       ]
     }

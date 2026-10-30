@@ -2,7 +2,9 @@
 
 Keep project questions and thresholds in an ordinary JSON preset outside the installed plugin.
 Use the bundled format: `questions`, `input_template`, `gate`, and boolean `calibrated`.
-Start with `calibrated: false`. Bundled calibration is example evidence, not proof for another workflow.
+Start with `calibrated: false`, as every bundled preset does. Historical replay results are example evidence, not local calibration.
+An explicit `--gate CONDITION` replaces the preset rule's thresholds and defaults to shadow unless you pass `--enforce`.
+This applies even when an external preset says `calibrated: true`; its `unless` exclusions remain in effect.
 
 Record a proposed gate result while the existing expensive step still runs:
 
@@ -35,6 +37,17 @@ Use JSONL with one independently checked outcome per ID:
 `needed: true` means the expensive step was needed for that evidence.
 Check outcomes against the actual task and evidence. An old LLM verdict is a disagreement signal, not automatic ground truth.
 Do not copy a gate's own answer into its label.
+
+The binary label evaluates one defined choice between an expensive step and its cheaper branch.
+It does not validate routing labels, score rubrics, or the adequacy of a selected model tier.
+
+| Tier example | Result |
+| --- | --- |
+| A task needs `standard` but not `frontier`. | A label for whether frontier is needed is `needed: false`. |
+| The classifier selects `small` and proposes skipping frontier. | The binary report can count this as a safe proposed skip. |
+| The selected `small` model is inadequate. | The binary report has not established tier adequacy. Check it with route-specific outcomes. |
+
+Define the avoided operation when labeling. A low unsafe-skip count cannot establish general routing accuracy.
 
 Generate the offline report:
 

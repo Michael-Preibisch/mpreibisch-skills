@@ -13,11 +13,14 @@ the pinned `clear-writing` skill, `artifact-standards`, `pr-review-ask`, and `de
 Both hosts can use it proactively for yes/no questions, labels, or fixed scores.
 It can gate an expensive polling or triage agent, with every uncertain result or
 error falling back to the LLM. It needs Python and an API key, without a peer CLI.
-Presets cover progress watching, review triage, failure retries, and model-tier routing.
-Uncalibrated preset gates log in shadow mode until you explicitly enable enforcement.
-The decision shape also covers custom relevance filters and one-off categorization.
+Presets cover progress watching, review triage, failure retries, model-tier routing, and relevance filtering.
+All bundled presets default to shadow mode. Overridden preset rules also default to shadow, even if the source is calibrated.
+The decision shape also covers custom questions and one-off categorization.
+The [authoring guide](plugins/mpreibisch-codex/skills/decisions/references/authoring.md) defines evidence, avoided operations, and fallbacks.
+[External templates](plugins/mpreibisch-codex/skills/decisions/examples/README.md) show caller-defined request routing and severity rubrics.
 Use `--preset-file PATH` for portable configuration, `--shadow` for any gate, and
 `report --log FILE --labels FILE` for offline evaluation against independent outcome IDs.
+The binary report evaluates one defined skip decision; it does not validate routing labels or tier adequacy.
 Loop acknowledgements and scheduled full checks remain caller-owned.
 
 `pr-review-ask` drafts a request to review one or more GitHub PRs in the user's own

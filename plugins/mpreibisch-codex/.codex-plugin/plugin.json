@@ -1,6 +1,6 @@
 {
   "name": "mpreibisch-codex",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Cross-model collaboration, clear writing, HTML artifact standards, GitHub PR review requests, and bounded judgments through the OpenAI Decisions API.",
   "author": {
     "name": "mpreibisch-skills contributors"

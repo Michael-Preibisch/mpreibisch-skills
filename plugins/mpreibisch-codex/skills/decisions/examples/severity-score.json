@@ -1,0 +1,26 @@
+{
+  "calibrated": false,
+  "template_note": "External template for --preset-file, not a bundled preset. Replace these level descriptions with the caller's impact rubric and handling rules. Urgency measures time sensitivity and needs separate handling.",
+  "input_template": "Issue and observed impact: ...\nCaller rubric defining low/moderate/high impact: ...\nAffected users, functions, duration, and known gaps: ...\nRoutine handling for low impact and expensive fallback: ...\nSeparate urgency or deadline requirements and handling: ...",
+  "questions": [
+    {
+      "type": "score",
+      "name": "severity",
+      "instructions": "Rate observed impact using only the caller's rubric matching the configured levels. Severity means impact; urgency means time sensitivity and must be handled separately. Do not infer impact from a deadline or convert missing evidence into low severity. Without a complete rubric or sufficient impact evidence, the score is unusable and the caller must use the expensive fallback.",
+      "levels": [
+        {"label": "low", "description": "Caller-defined low impact; example: a cosmetic issue with no lost function."},
+        {"label": "moderate", "description": "Caller-defined moderate impact; example: a limited function is impaired with a usable workaround."},
+        {"label": "high", "description": "Caller-defined high impact; example: essential function is unavailable without a usable workaround."}
+      ]
+    },
+    {
+      "type": "predicate",
+      "name": "routine_handling_sufficient",
+      "instructions": "Does positive evidence establish that the caller's routine handling suffices without the expensive triage pass? Require the complete impact rubric, sufficient nonconflicting impact evidence, and defined routine handling and fallback. Any urgency or deadline obligations must already have separate handling. Missing evidence or an unmet obligation prevents routine handling. This answer never grants authorization."
+    }
+  ],
+  "gate": {
+    "all": ["severity=low>=0.95", "routine_handling_sufficient>=0.95"],
+    "unless": ["routine_handling_sufficient<0.95"]
+  }
+}

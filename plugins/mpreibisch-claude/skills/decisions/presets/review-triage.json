@@ -1,6 +1,6 @@
 {
   "calibrated": false,
-  "input_template": "Review bar and blocker criteria: ...\nFinding: ...\nRelevant diff hunk and context: ...\nPrior-round findings and resolutions: ...",
+  "input_template": "Review bar and blocker criteria: ...\nUser's handling policy, including whether every finding needs action: ...\nRoutine handling without a coordinator turn and how findings stay recorded: ...\nFinding: ...\nRelevant diff hunk and context: ...\nPrior findings, known handling, and unresolved obligations (explicitly none, or unknown): ...",
   "questions": [
     {
       "type": "predicate",
@@ -10,16 +10,27 @@
     {
       "type": "choice",
       "name": "same_as_prior",
-      "instructions": "Compare the current finding with prior-round findings and fixes. Identify the underlying issue, not wording similarity. If no prior findings are supplied, classify it as new_issue.",
+      "instructions": "Compare the current finding with the supplied prior findings and fixes by underlying issue, not wording similarity. An explicit statement of no prior findings supports new_issue. Missing or conflicting history requires insufficient_evidence. Same_issue alone never justifies skipping: require known prior handling with no new facts, affected scope, or obligations. Unresolved duplicates need the coordinator.",
       "choices": [
         {"value": "same_issue", "description": "A prior finding reports the same underlying issue, without a new regression."},
         {"value": "new_issue", "description": "The finding identifies a distinct issue absent from prior findings."},
-        {"value": "regression_from_fix", "description": "A prior fix introduced the issue described by this finding."}
+        {"value": "regression_from_fix", "description": "A prior fix introduced the issue described by this finding."},
+        {"value": "insufficient_evidence", "description": "Prior history is unknown, incomplete, or conflicting."}
+      ]
+    },
+    {
+      "type": "choice",
+      "name": "handling",
+      "instructions": "Decide whether the caller's defined routine handling suffices without this coordinator turn. Require positive evidence from the user's handling policy, finding, diff context, and known prior disposition. Non-blocking does not mean no action: a policy to address every finding still applies. Routine handling must keep the finding recorded with any required later action. Duplicate status supports routine handling only with known prior handling and no new facts, scope, or obligations. Unresolved duplicates require needs_coordinator. Use insufficient_evidence for missing or conflicting policy, context, or history. Classification never resolves a finding or authorizes an action.",
+      "choices": [
+        {"value": "routine", "description": "Positive evidence shows the defined routine handling preserves every obligation without this coordinator turn."},
+        {"value": "needs_coordinator", "description": "The finding or an unresolved obligation requires coordinator attention under the user's policy."},
+        {"value": "insufficient_evidence", "description": "Missing or conflicting evidence prevents establishing that routine handling suffices."}
       ]
     }
   ],
   "gate": {
-    "all": ["blocking<=0.05"],
-    "unless": ["blocking>0.05"]
+    "all": ["blocking<=0.05", "handling=routine>=0.95"],
+    "unless": ["blocking>0.05", "handling=routine<0.95", "same_as_prior=insufficient_evidence>0.05"]
   }
 }
