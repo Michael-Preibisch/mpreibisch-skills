@@ -138,6 +138,13 @@ class ConfigurationTests(Fixture):
 
 
 class DecisionLogicTests(unittest.TestCase):
+    def test_dated_response_model_allows_a_matching_gate_to_skip(self):
+        payload = response()
+        payload["model"] = "gpt-6-luna-2026-10-01"
+        result = decide.normalize(payload, QUESTIONS)
+        gates = decide.parse_gates(["status=progressing>=0.9", "quality_flag<0.2"], QUESTIONS)
+        self.assertTrue(decide.should_skip(gates, result["answers"]))
+
     def test_documented_rule_checks_both_probabilities_and_rejects_invalid_answers(self):
         gates = decide.parse_gates(["status=progressing>=0.9", "quality_flag<0.2"], QUESTIONS)
         for progress, flag, expected in [(0.9, 0.19, True), (0.95, 0.2, False),

@@ -110,7 +110,7 @@ Keep the LLM running while collecting shadow results. Log its answers beside the
 Label representative examples from actual evidence and compare disagreements.
 After validating thresholds, set the preset's `calibrated` field to `true`, or pass `--enforce` explicitly.
 Plugin updates can replace local preset edits. Recheck calibration after changing questions, options, rules, or workflow evidence.
-For custom gates or the watcher preset, keep shadow mode by running the LLM regardless of the exit code.
+For custom gates, run the LLM regardless of the exit code until labeled examples support enforcement.
 
 `--log FILE` appends one JSONL record per call, including failures after argument parsing.
 It records input length and SHA-256, normalized answers, usage, elapsed time, and the gate result.

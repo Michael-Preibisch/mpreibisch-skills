@@ -208,7 +208,8 @@ def request(body, key, url, deadline):
 
 
 def normalize(response, questions):
-    require(isinstance(response, dict) and response.get("model") == MODEL, "invalid response model")
+    require(isinstance(response, dict) and isinstance(response.get("model"), str)
+            and response["model"].startswith(MODEL), "invalid response model")
     answers = response.get("answers")
     require(isinstance(answers, list) and len(answers) == len(questions), "invalid answer count")
     usage = response.get("usage")
