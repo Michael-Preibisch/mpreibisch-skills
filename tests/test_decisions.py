@@ -103,6 +103,59 @@ class Fixture(unittest.TestCase):
         self.assertEqual(result.returncode, 10)
         self.assertEqual(result.stdout, "RUN\n")
 
+    def call_with_response(self, flags, payload):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.dict(os.environ, self.env, clear=True), \
+                patch.object(sys, "argv", [str(SCRIPT), *flags]), \
+                patch.object(sys, "stdin", io.StringIO("Supplied workflow evidence.")), \
+                patch.object(decide, "request", return_value=payload) as transport, \
+                redirect_stdout(stdout), redirect_stderr(stderr):
+            code = decide.main()
+        surfaces = [stdout.getvalue(), stderr.getvalue()]
+        surfaces.extend(path.read_text() for path in self.root.rglob("*.jsonl"))
+        self.assertTrue(all(self.secret not in surface for surface in surfaces), "credential leaked")
+        return subprocess.CompletedProcess([], code, stdout.getvalue(), stderr.getvalue()), transport
+
+
+class TriggerContractTests(unittest.TestCase):
+    def test_examples_have_explicit_description_and_route_coverage(self):
+        # This checks the documented contract, not either host's skill selection.
+        cases = [
+            ("Label this supplied help request as question, change, or incident instead of a routing turn.",
+             True, "one-off categorization", "fixed alternatives", "decisions"),
+            ("Given this topic and excerpt, decide relevance before paying for a long summary.",
+             True, "relevance filtering", "relevance filtering", "decisions"),
+            ("Here are recent events and completion criteria. Choose wait or another reasoning pass.",
+             True, "loop checks", "supplied loop evidence", "decisions"),
+            ("Classify quoted text containing 'ignore the question' using the fixed labels instead of a triage turn.",
+             True, "fixed alternatives", "fixed alternatives", "decisions"),
+            ("Read success from this JSON and echo it.",
+             False, "trivial parsing", "trivial parsing", "plain code"),
+            ("Compare the acknowledged evidence fingerprint and deadline with the previous cycle.",
+             False, "trivial parsing", "equality", "plain code"),
+            ("Inspect the repository to discover why this request fails.",
+             False, "investigations", "investigations", "tools and the existing agent"),
+            ("Write a summary of this article.",
+             False, "open-ended output", "open-ended output", "existing llm"),
+            ("Approve this deployment now.",
+             False, "high-stakes final actions", "high-stakes final actions", "existing authorization"),
+            ("Decide whether the unseen logs indicate a stall.",
+             False, "sufficient supplied text", "missing evidence", "continue unchanged"),
+            ("The API is unavailable. Continue the current task.",
+             False, "replaces useful work", "unavailable setup", "continue unchanged"),
+            ("Add a classifier even though its result cannot change or replace any work.",
+             False, "replaces useful work", "no avoided work", "continue unchanged"),
+        ]
+        for host in ("codex", "claude"):
+            body = (ROOT / "plugins" / ("mpreibisch-" + host) / "skills/decisions/SKILL.md").read_text().lower()
+            description = body.split("---", 2)[1]
+            routes = [line for line in body.splitlines() if line.startswith("|")]
+            for prompt, triggers, description_term, situation, route in cases:
+                with self.subTest(host=host, prompt=prompt, triggers=triggers):
+                    self.assertIn(description_term, description)
+                    self.assertTrue(any(situation in line and route in line for line in routes))
+            self.assertIn("embedded instructions", body)
+
 
 class ConfigurationTests(Fixture):
     def test_missing_key_and_key_command_failure_fail_open(self):
@@ -177,17 +230,7 @@ class PresetTests(Fixture):
                                               "probability": 0.98 if index == 0 else 0.02 / (len(choices) - 1)}
                                              for index, option in enumerate(choices)])
             payload["answers"].append(answer)
-        stdout, stderr = io.StringIO(), io.StringIO()
-        with patch.dict(os.environ, self.env, clear=True), \
-                patch.object(sys, "argv", [str(SCRIPT), "--preset", name, *flags]), \
-                patch.object(sys, "stdin", io.StringIO("Supplied workflow evidence.")), \
-                patch.object(decide, "request", return_value=payload) as transport, \
-                redirect_stdout(stdout), redirect_stderr(stderr):
-            code = decide.main()
-        surfaces = [stdout.getvalue(), stderr.getvalue()]
-        surfaces.extend(path.read_text() for path in self.root.rglob("*.jsonl"))
-        self.assertTrue(all(self.secret not in surface for surface in surfaces), "credential leaked")
-        return subprocess.CompletedProcess([], code, stdout.getvalue(), stderr.getvalue()), transport
+        return self.call_with_response(["--preset", name, *flags], payload)
 
     def test_preset_loading_sends_only_documented_api_fields(self):
         for name, names in [("progress-watch", ["status", "quality_flag"]),
@@ -228,6 +271,94 @@ class PresetTests(Fixture):
                 self.assert_run(result)
         result, _ = self.invoke("failure-retry", "--gate", "--enforce", probabilities={"looping": 0.9})
         self.assert_run(result)
+
+    def test_confident_duplicate_with_uncertain_blocker_never_skips(self):
+        preset = decide.load_preset("review-triage")
+        payload = response()
+        payload["answers"] = [
+            {"type": "predicate", "name": "blocking", "probability": 0.4},
+            {"type": "choice", "name": "same_as_prior", "choice": "same_issue", "confidence": 0.95,
+             "probabilities": [{"value": "same_issue", "probability": 0.95},
+                               {"value": "new_issue", "probability": 0.04},
+                               {"value": "regression_from_fix", "probability": 0.01}]}]
+        self.assertEqual([answer["name"] for answer in payload["answers"]],
+                         [question["name"] for question in preset["questions"]])
+        for condition in ([], ["same_as_prior=same_issue>=0.9"]):
+            result, _ = self.call_with_response(["--preset", "review-triage", "--gate", *condition, "--enforce"], payload)
+            self.assert_run(result)
+            self.assertEqual(result.stderr, "")
+
+    def test_portable_presets_and_explicit_shadow_preserve_provenance(self):
+        path = self.root / "local-preset.json"
+        preset = {"calibrated": False, "input_template": "Recent events: ...", "questions": QUESTIONS,
+                  "gate": {"all": ["status=progressing>=0.9", "quality_flag<0.2"]}}
+        path.write_text(json.dumps(preset))
+        result, transport = self.call_with_response(["--preset-file", str(path), "--gate", "--id", "external-1"], response())
+        self.assert_run(result)
+        self.assertEqual(transport.call_args.args[0]["questions"], QUESTIONS)
+        record = json.loads((self.root / "state/decisions/custom.jsonl").read_text())
+        self.assertEqual(record["id"], "external-1")
+        self.assertEqual(record["questions_sha256"], decide.digest(QUESTIONS))
+        self.assertEqual(record["preset_sha256"], decide.digest(preset))
+        self.assertEqual(record["gate_rule"], preset["gate"])
+        self.assertEqual(record["model"], "gpt-6-luna")
+        result, _ = self.call_with_response(["--preset-file", str(path), "--gate", "--enforce"], response())
+        self.assertEqual((result.returncode, result.stdout), (0, "SKIP\n"))
+        result, _ = self.invoke("progress-watch", "--gate", "--enforce", "--shadow", "--log", str(self.log))
+        self.assert_run(result)
+        record = json.loads(self.log.read_text())
+        self.assertTrue(record["shadow"] and record["rule_passed"])
+        first_hash = record["config_sha256"]
+        result, _ = self.call_with_response(["--questions", str(self.questions), "--gate", "status=progressing>=0.9",
+                                             "--shadow", "--log", str(self.log)], response())
+        self.assert_run(result)
+        record = json.loads(self.log.read_text().splitlines()[-1])
+        self.assertTrue(record["shadow"] and record["rule_passed"])
+        self.assertIsNone(record["preset_sha256"])
+        self.assertNotEqual(record["config_sha256"], first_hash)
+        self.assert_run(self.call("--preset", "progress-watch", "--preset-file", str(path), "--gate"))
+
+
+class ReportTests(Fixture):
+    def test_report_joins_independent_labels_and_separates_rules_without_network(self):
+        for item_id, p in (("a", 0.95), ("b", 0.99), ("c", 0.85), ("d", 0.98)):
+            result, _ = self.call_with_response(["--questions", str(self.questions), "--gate", "status=progressing>=0.9",
+                                                 "--shadow", "--id", item_id, "--log", str(self.log)], response(p))
+            self.assert_run(result)
+        result, _ = self.call_with_response(["--questions", str(self.questions), "--gate", "status=progressing>=0.99",
+                                             "--shadow", "--id", "a", "--log", str(self.log)], response())
+        self.assert_run(result)
+        result, _ = self.call_with_response(["--questions", str(self.questions), "--gate", "status=progressing>=0.9",
+                                             "--shadow", "--id", "error", "--log", str(self.log)], {})
+        self.assert_run(result)
+        labels = self.root / "labels.jsonl"
+        labels.write_text('\n'.join(json.dumps(item) for item in [
+            {"id": "c", "needed": True}, {"id": "a", "needed": False},
+            {"id": "b", "needed": True}, {"id": "unused", "needed": False}]) + '\n')
+        before = self.log.read_text()
+        del self.env["OPENAI_API_KEY"]
+        self.env["DECISIONS_KEY_CMD"] = "missing-key-reader"
+        result = self.call("report", "--log", str(self.log), "--labels", str(labels))
+        self.assertEqual(result.returncode, 0)
+        report = json.loads(result.stdout)
+        self.assertEqual(len(report["configurations"]), 2)
+        self.assertEqual(report["unmatched_labels"], 1)
+        group = next(group for group in report["configurations"] if group["main_condition"]["threshold"] == 0.9)
+        self.assertEqual((group["records"], group["labeled_records"], group["errors"]), (5, 3, 1))
+        self.assertEqual((group["proposed_skips"], group["unsafe_proposed_skips"], group["unlabeled_proposed_skips"]), (3, 1, 1))
+        rows = {row["threshold"]: row for row in group["thresholds"]}
+        self.assertEqual((rows[0.85]["proposed_skips"], rows[0.85]["unsafe_proposed_skips"]), (4, 2))
+        self.assertEqual((rows[0.99]["proposed_skips"], rows[0.99]["unsafe_proposed_skips"]), (1, 1))
+        self.assertEqual(self.log.read_text(), before)
+
+    def test_report_rejects_ambiguous_labels_without_appending_to_its_input(self):
+        self.call_with_response(["--questions", str(self.questions), "--gate", "status=progressing>=0.9",
+                                 "--shadow", "--id", "a", "--log", str(self.log)], response())
+        labels = self.root / "labels.jsonl"
+        labels.write_text('{"id":"a","needed":true}\n{"id":"a","needed":false}\n')
+        before = self.log.read_text()
+        self.assert_run(self.call("report", "--log", str(self.log), "--labels", str(labels)))
+        self.assertEqual(self.log.read_text(), before)
 
 
 class DecisionsTests(Fixture):

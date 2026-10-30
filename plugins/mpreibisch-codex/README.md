@@ -65,6 +65,10 @@ question formats, gate conditions, and private JSONL logs. Calibrate with labele
 or shadow mode before skipping LLM calls. Every error falls back to the LLM.
 Use `--preset progress-watch --gate` for the supplied watcher rule.
 Review, retry, and tier-routing presets default to shadow mode until calibrated or enforced.
+Presets are optional: fixed judgments over sufficient supplied text can use custom questions.
+Keep local configuration with `--preset-file PATH`; `--shadow` logs any gate while returning `RUN`.
+Use `report --log FILE --labels FILE` to compare proposals with independent outcome IDs offline.
+The skill includes deterministic checks before API calls; the caller retains loop state and scheduling.
 
 ## Examples
 

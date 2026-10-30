@@ -19,7 +19,7 @@
     }
   ],
   "gate": {
-    "any": ["blocking<=0.05", "same_as_prior=same_issue>=0.9"],
-    "unless": ["blocking>=0.5"]
+    "all": ["blocking<=0.05"],
+    "unless": ["blocking>0.05"]
   }
 }

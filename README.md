@@ -15,6 +15,10 @@ It can gate an expensive polling or triage agent, with every uncertain result or
 error falling back to the LLM. It needs Python and an API key, without a peer CLI.
 Presets cover progress watching, review triage, failure retries, and model-tier routing.
 Uncalibrated preset gates log in shadow mode until you explicitly enable enforcement.
+The decision shape also covers custom relevance filters and one-off categorization.
+Use `--preset-file PATH` for portable configuration, `--shadow` for any gate, and
+`report --log FILE --labels FILE` for offline evaluation against independent outcome IDs.
+Loop acknowledgements and scheduled full checks remain caller-owned.
 
 `pr-review-ask` drafts a request to review one or more GitHub PRs in the user's own
 voice: motivation first, one line per PR, confirmed stacks kept visible, linked issues

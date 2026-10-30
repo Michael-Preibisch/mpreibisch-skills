@@ -55,10 +55,16 @@ def probability(value):
     return value
 
 
-def load_preset(name):
-    require(re.fullmatch(r"[a-z][a-z0-9-]*", name) is not None, "invalid preset name")
-    path = Path(__file__).resolve().parent.parent / "presets" / (name + ".json")
-    preset = json.loads(path.read_text(encoding="utf-8"))
+def digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                     allow_nan=False).encode("utf-8")).hexdigest()
+
+
+def load_preset(name=None, path=None):
+    if name is not None:
+        require(re.fullmatch(r"[a-z][a-z0-9-]*", name) is not None, "invalid preset name")
+        path = Path(__file__).resolve().parent.parent / "presets" / (name + ".json")
+    preset = json.loads(Path(path).read_text(encoding="utf-8"))
     require(isinstance(preset, dict) and type(preset.get("calibrated")) is bool, "invalid preset calibration")
     require(isinstance(preset.get("input_template"), str) and preset["input_template"].strip(),
             "preset needs an input template")
@@ -257,18 +263,23 @@ def normalize(response, questions):
                 probabilities = [{"label": option["label"], "value": option["value"],
                                   "probability": option["probability"]} for option in probabilities]
         normalized.append({"name": question["name"], "type": kind, "value": chosen, "probabilities": probabilities})
-    return {"model": MODEL, "answers": normalized, "usage": usage}
+    return {"model": response["model"], "answers": normalized, "usage": usage}
+
+
+def condition_probability(condition, answers):
+    name, value, _, _ = condition
+    answer = next(answer for answer in answers if answer["name"] == name)
+    key = "label" if answer["type"] == "score" else "value"
+    target = True if answer["type"] == "predicate" else value
+    return probability(next(option["probability"] for option in answer["probabilities"]
+                            if identity(option[key]) == identity(target)))
 
 
 def should_skip(gates, answers):
     passed = []
-    by_name = {answer["name"]: answer for answer in answers}
-    for name, value, operator, threshold in gates:
-        answer = by_name[name]
-        key = "label" if answer["type"] == "score" else "value"
-        target = True if answer["type"] == "predicate" else value
-        p = next(option["probability"] for option in answer["probabilities"]
-                 if identity(option[key]) == identity(target))
+    for condition in gates:
+        _, _, operator, threshold = condition
+        p = condition_probability(condition, answers)
         passed.append({">=": p >= threshold, "<=": p <= threshold, ">": p > threshold, "<": p < threshold}[operator])
     return bool(passed) and all(passed)
 
@@ -312,16 +323,109 @@ def write_log(path, record, key):
             raise DecisionError("cannot append decision log") from None
 
 
+def read_jsonl(path):
+    with open(path, encoding="utf-8") as source:
+        for line in source:
+            if line.strip():
+                item = json.loads(line)
+                require(isinstance(item, dict), "JSONL records must be objects")
+                yield item
+
+
+def build_report(log_path, labels_path):
+    labels = {}
+    for label in read_jsonl(labels_path):
+        item_id = label.get("id")
+        require(isinstance(item_id, str) and item_id.strip() and item_id not in labels,
+                "labels need unique nonempty ids")
+        require(type(label.get("needed")) is bool, "labels need a boolean needed field")
+        labels[item_id] = label["needed"]
+    groups, seen, matched_ids = {}, set(), set()
+    for record in read_jsonl(log_path):
+        item_id = record.get("id")
+        require(isinstance(item_id, str) and item_id.strip(), "report requires caller-supplied ids in gate logs")
+        config = {key: record[key] for key in ("model", "questions_sha256", "preset_sha256", "gate_rule")}
+        require(isinstance(config["model"], str) and isinstance(config["gate_rule"], dict),
+                "report requires configuration provenance and a gate rule")
+        for field in ("questions_sha256", "preset_sha256"):
+            value = config[field]
+            require((field == "preset_sha256" and value is None)
+                    or (isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)),
+                    "invalid configuration provenance")
+        config_hash = digest(config)
+        require(record.get("config_sha256") == config_hash, "configuration provenance does not match")
+        require((config_hash, item_id) not in seen, "duplicate id within a configuration")
+        seen.add((config_hash, item_id))
+        group = groups.setdefault(config_hash, {"config_sha256": config_hash, **config,
+                                               "records": 0, "labeled_records": 0, "errors": 0, "cases": []})
+        group["records"] += 1
+        if item_id in labels:
+            group["labeled_records"] += 1
+            matched_ids.add(item_id)
+        if record.get("error"):
+            group["errors"] += 1
+            continue
+        answers = record["answers"]
+        require(isinstance(answers, list) and answers, "missing logged answers")
+        questions = []
+        for answer in answers:
+            kind = answer["type"]
+            require(kind in ("predicate", "choice", "score"), "invalid logged answer type")
+            question = {"name": answer["name"], "type": kind}
+            if kind != "predicate":
+                field, key = ("choices", "value") if kind == "choice" else ("levels", "label")
+                question[field] = [{key: option[key]} for option in answer["probabilities"]]
+            questions.append(question)
+        rule = parse_rule(config["gate_rule"], questions)
+        group["cases"].append((rule, answers, labels.get(item_id)))
+
+    def counts(cases):
+        proposed = unsafe = unlabeled = 0
+        for rule, answers, needed in cases:
+            if rule_passes(rule, answers):
+                proposed += 1
+                unsafe += needed is True
+                unlabeled += needed is None
+        return {"proposed_skips": proposed, "unsafe_proposed_skips": unsafe,
+                "unlabeled_proposed_skips": unlabeled}
+
+    results = []
+    for group in groups.values():
+        cases = group.pop("cases")
+        group.update(counts(cases), unlabeled_records=group["records"] - group["labeled_records"],
+                     main_condition=None, thresholds=[])
+        if cases:
+            first_rule = cases[0][0]
+            main_group = "all" if first_rule["all"] else "any"
+            condition = first_rule[main_group][0]
+            group["main_condition"] = {"question": condition[0], "option": condition[1],
+                                       "operator": condition[2], "threshold": condition[3]}
+            for threshold in sorted({0.01, 0.05, 0.1, 0.2, 0.5, 0.75, 0.85, 0.9, 0.95, 0.99, condition[3]}):
+                varied_cases = []
+                for rule, answers, needed in cases:
+                    varied = {key: list(value) for key, value in rule.items()}
+                    name, option, operator, _ = varied[main_group][0]
+                    varied[main_group][0] = (name, option, operator, threshold)
+                    varied_cases.append((varied, answers, needed))
+                group["thresholds"].append({"threshold": threshold, **counts(varied_cases)})
+        results.append(group)
+    return {"configurations": results, "unmatched_labels": len(set(labels) - matched_ids)}
+
+
 def main():
-    parser = Parser(description=__doc__)
+    parser = Parser(description=__doc__, epilog="Offline report: decide.py report --log FILE --labels FILE")
     parser.add_argument("--input", metavar="FILE", help="Read UTF-8 text from a file instead of stdin")
     parser.add_argument("--questions", metavar="FILE", help="Read a JSON array of API questions")
-    parser.add_argument("--preset", metavar="NAME", help="Load bundled questions and a gate rule")
+    presets = parser.add_mutually_exclusive_group()
+    presets.add_argument("--preset", metavar="NAME", help="Load bundled questions and a gate rule")
+    presets.add_argument("--preset-file", metavar="PATH", help="Load a portable preset JSON file")
     parser.add_argument("--predicate", nargs=2, action="append", default=[], metavar=("NAME", "INSTRUCTIONS"))
     parser.add_argument("--choice", nargs=3, action="append", default=[], metavar=("NAME", "INSTRUCTIONS", "CHOICES_JSON"))
     parser.add_argument("--gate", nargs="?", const="", action="append", metavar="CONDITION",
                         help="Use preset rules, or require every explicit condition")
     parser.add_argument("--enforce", action="store_true", help="Enforce an uncalibrated preset gate instead of shadowing it")
+    parser.add_argument("--shadow", action="store_true", help="Log any gate's proposed decision and always run the LLM")
+    parser.add_argument("--id", dest="record_id", help="Caller-supplied outcome id for offline evaluation")
     parser.add_argument("--log", metavar="FILE", help="Append answers and input metadata as JSONL")
     parser.add_argument("--check", action="store_true", help="Check configuration without a network call or stdin read")
     args = None
@@ -329,29 +433,46 @@ def main():
     started = time.monotonic()
     record = {"input_length": None, "input_sha256": None, "answers": [], "gate": "RUN"}
     try:
+        if sys.argv[1:2] == ["report"]:
+            report_parser = Parser(description="Report proposed skips against independent JSONL outcome labels")
+            report_parser.add_argument("--log", required=True)
+            report_parser.add_argument("--labels", required=True)
+            report_args = report_parser.parse_args(sys.argv[2:])
+            print(encode(build_report(report_args.log, report_args.labels), os.environ.get("OPENAI_API_KEY", "").strip()))
+            return 0
         args = parser.parse_args()
+        record["id"] = args.record_id
         gating = args.gate is not None
         require(not (args.check and gating), "--check cannot run a gate")
-        require(not args.enforce or (args.preset and gating), "--enforce requires --preset and --gate")
-        preset = load_preset(args.preset) if args.preset else None
+        require(not args.shadow or gating, "--shadow requires --gate")
+        require(not args.enforce or ((args.preset or args.preset_file) and gating),
+                "--enforce requires a preset and --gate")
+        require(args.record_id is None or args.record_id.strip(), "--id must not be empty")
+        preset = load_preset(args.preset, args.preset_file) if (args.preset or args.preset_file) else None
         questions = load_questions(args, preset) if (not args.check or preset or args.questions or args.predicate or args.choice) else []
         preset_rule = parse_rule(preset["gate"], questions) if preset else None
         rule = None
+        rule_source = None
         if gating:
             conditions = [condition for condition in args.gate if condition]
             require(conditions or preset, "bare --gate requires a preset")
             if conditions:
-                rule = parse_rule({"all": conditions,
-                                   "unless": preset["gate"].get("unless", []) if preset else []}, questions)
+                rule_source = {"all": conditions, "unless": preset["gate"].get("unless", []) if preset else []}
+                rule = parse_rule(rule_source, questions)
             else:
                 rule = preset_rule
-        shadow = bool(gating and preset and not preset["calibrated"] and not args.enforce)
+                rule_source = preset["gate"]
+        shadow = bool(gating and (args.shadow or (preset and not preset["calibrated"] and not args.enforce)))
+        record["shadow"] = shadow
+        config = {"model": MODEL, "questions_sha256": digest(questions),
+                  "preset_sha256": digest(preset) if preset else None, "gate_rule": rule_source}
+        record.update(config, config_sha256=digest(config))
         if preset:
-            record.update(preset=args.preset, calibrated=preset["calibrated"], shadow=shadow)
+            record.update(preset=args.preset or "external", calibrated=preset["calibrated"])
         if shadow and not args.log:
             state = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "decisions"
             state.mkdir(parents=True, exist_ok=True, mode=0o700)
-            args.log = str(state / (args.preset + ".jsonl"))
+            args.log = str(state / ((args.preset or "custom") + ".jsonl"))
         url = endpoint()
         key = get_key(started + TIMEOUT)
         if args.check:
@@ -366,6 +487,8 @@ def main():
         record.update(input_length=len(text), input_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest())
         result = normalize(request({"model": MODEL, "input": text, "questions": questions},
                                    key, url, time.monotonic() + TIMEOUT), questions)
+        config["model"] = result["model"]
+        record.update(config, config_sha256=digest(config))
         matched = bool(gating and rule_passes(rule, result["answers"]))
         skip = matched and not shadow
         decision = "SKIP" if skip else "RUN"
