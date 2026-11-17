@@ -388,6 +388,8 @@ def run(args):
         agents_rule = ("You may spawn read-only sub-agents of your own model family"
                        + (" (agent type `reader`)" if target == "claude" else "")
                        + " with their configured model and effort; do not override either. "
+                       "Give every sub-agent the handoff's read paths and exclusions, and keep "
+                       "its assignment inside them. "
                        "Never call the other model's CLI or a cross-model skill. ")
     prompt = "\n\n".join([
         "You are the receiving agent for one bounded cross-model assignment. " + agents_rule +
