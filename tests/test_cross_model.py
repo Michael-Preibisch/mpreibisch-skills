@@ -207,7 +207,7 @@ class HandoffTests(unittest.TestCase):
         for skill in ("consensus", "adversarial-review", "delegate-explore", "delegate-implement", "brainstorm"):
             self.request["skill"] = skill
             for target in ("claude", "codex"):
-                model = "claude-opus-5-5" if target == "claude" else "gpt-6-astra"
+                model = "claude-opus-5-5" if target == "claude" else "gpt-6.2-astra"
                 effort = "xhigh"
                 with self.subTest(skill=skill, target=target):
                     command = runner.build_command(target, self.request, runner.schema_path(skill), session_id="s-1")
@@ -228,7 +228,7 @@ class HandoffTests(unittest.TestCase):
                     self.assertFalse(any(arg.startswith("model_reasoning_effort=") for arg in command))
 
     def test_effort_overrides_are_independent_of_model_selection(self):
-        for target, model in (("claude", "claude-opus-5-5"), ("codex", "gpt-6-astra")):
+        for target, model in (("claude", "claude-opus-5-5"), ("codex", "gpt-6.2-astra")):
             with self.subTest(target=target):
                 self.assertEqual(runner.select_model(target, "delegate-explore", effort="low"), (model, "low"))
                 self.assertEqual(runner.select_model(target, "delegate-explore", effort="default"), (model, None))

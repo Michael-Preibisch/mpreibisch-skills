@@ -150,8 +150,8 @@ The defaults apply to the receiving agent in each cross-model call:
 
 | Workflow | Claude Code target | Codex target |
 | --- | --- | --- |
-| Consensus, adversarial review, brainstorm, exploration | Opus 5.5 (`claude-opus-5-5`), xhigh | GPT-6 Astra (`gpt-6-astra`), xhigh |
-| Implementation | Opus 5.5 (`claude-opus-5-5`), xhigh | GPT-6 Astra (`gpt-6-astra`), xhigh |
+| Consensus, adversarial review, brainstorm, exploration | Opus 5.5 (`claude-opus-5-5`), xhigh | GPT-6.2 Astra (`gpt-6.2-astra`), xhigh |
+| Implementation | Opus 5.5 (`claude-opus-5-5`), xhigh | GPT-6.2 Astra (`gpt-6.2-astra`), xhigh |
 
 All models and aliases supported by the receiving CLI and your account remain
 available. `artifact-standards` and `pr-review-ask` use the calling agent's model and

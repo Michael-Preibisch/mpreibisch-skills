@@ -61,8 +61,8 @@ These defaults apply to the receiving CLI, not to the calling agent's model:
 
 | Workflow | Claude Code target | Codex target |
 | --- | --- | --- |
-| Consensus, adversarial review, exploration, brainstorm | `claude-opus-5-5`, `xhigh` | `gpt-6-astra`, `xhigh` |
-| Implementation | `claude-opus-5-5`, `xhigh` | `gpt-6-astra`, `xhigh` |
+| Consensus, adversarial review, exploration, brainstorm | `claude-opus-5-5`, `xhigh` | `gpt-6.2-astra`, `xhigh` |
+| Implementation | `claude-opus-5-5`, `xhigh` | `gpt-6.2-astra`, `xhigh` |
 
 Respect any model or effort the user names. Pass the choices explicitly:
 
@@ -97,7 +97,7 @@ Only `delegate-explore`, `brainstorm`, `consensus`, and `adversarial-review` acc
 `delegate-implement` refuses it. Set it only when the user asks for receiver
 sub-agents. Without `effort`, the sub-agent model uses its own default.
 
-Claude asks Codex (Astra xhigh, sub-agents Terra 6.1 high): run with `--model gpt-6-astra
+Claude asks Codex (Astra xhigh, sub-agents Terra 6.1 high): run with `--model gpt-6.2-astra
 --effort xhigh` and put this in the request:
 
 ```json
@@ -215,7 +215,7 @@ must be enforced against arbitrary code. Unsupported CLI versions fail closed.
 ## Known limits
 
 - Codex's model catalog sets the multi-agent version per model. On models such as
-  `gpt-6-astra`, `--disable multi_agent` and `--disable multi_agent_v2` don't remove the
+  `gpt-6.2-astra`, `--disable multi_agent` and `--disable multi_agent_v2` don't remove the
   agent tools; the session only spawns agents when explicitly asked. Without
   `subagents`, the receiver prompt forbids that. Shell access could reach the other CLI
   either way, so the no-recursive-delegation rule is an instruction, not a guarantee.
