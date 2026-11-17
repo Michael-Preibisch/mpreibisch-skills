@@ -48,7 +48,7 @@ Keep default model choices in `bridge/models.json`, synchronized across packages
 | Receiving CLI | Consensus, review, brainstorm, exploration | Implementation |
 | --- | --- | --- |
 | Claude Code | `claude-opus-5-5`, xhigh | `claude-opus-5-5`, xhigh |
-| Codex | `gpt-6-astra`, xhigh | `gpt-6-astra`, xhigh |
+| Codex | `gpt-6.2-astra`, xhigh | `gpt-6.2-astra`, xhigh |
 
 These are overridable defaults, not an allowed-model list. Accept model IDs and
 aliases from the user, including future models supported by the receiving CLI.

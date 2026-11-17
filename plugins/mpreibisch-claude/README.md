@@ -41,7 +41,7 @@ Codex keeps these transcripts in its normal session store. See
 
 ## Models
 
-Codex defaults to GPT-6 Astra (`gpt-6-astra`) at xhigh effort for every workflow.
+Codex defaults to GPT-6.2 Astra (`gpt-6.2-astra`) at xhigh effort for every workflow.
 These settings affect the receiving Codex process, not your Claude Code session.
 
 Ask for any model supported by your Codex CLI and account. The helper accepts
