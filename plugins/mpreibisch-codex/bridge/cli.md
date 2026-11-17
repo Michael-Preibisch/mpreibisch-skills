@@ -96,8 +96,9 @@ model family, add `subagents` to the request with a `model` and an optional `eff
 Only `delegate-explore`, `brainstorm`, `consensus`, and `adversarial-review` accept it;
 `delegate-implement` refuses it. Set it when the user asks for receiver sub-agents, or
 for a challenging, complex or large `brainstorm` or `consensus`, where Astra 6.2 spawns
-exploratory Sol 6.2 high sub-agents. Without `effort`, the sub-agent model uses its own
-default.
+exploratory Sol 6.2 high sub-agents unless the user names other sub-agents or none. Every
+child assignment repeats the handoff's read paths and exclusions. Without `effort`, the
+sub-agent model uses its own default.
 
 Claude asks Codex (Astra xhigh, sub-agents Terra 6.1 high): run with `--model gpt-6.2-astra
 --effort xhigh` and put this in the request:
