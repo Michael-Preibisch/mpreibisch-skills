@@ -12,10 +12,12 @@ goal, motivations, constraints, decision rationale, and intended outcome on ever
 plus the user's ranking criteria. A topic alone is not enough. Both agents stay read-only.
 
 For a challenging, complex or large topic, Claude asks Codex Astra 6.2 (xhigh, the
-default) to spawn a small fleet of exploratory Sol 6.2 high sub-agents: set `subagents` in
-the request to `{"model": "gpt-6.2-sol", "effort": "high"}` (see
-[Sub-agents](../../bridge/cli.md#sub-agents)). Otherwise, set `subagents` only when the user
-asks for receiver sub-agents. Codex asks Claude Opus 5.5 high with Sonnet 5.5 high
+default) to spawn a small fleet of exploratory Sol 6.2 high sub-agents, unless the user
+names other sub-agents or none. Set `subagents` in the request to
+`{"model": "gpt-6.2-sol", "effort": "high"}` (see
+[Sub-agents](../../bridge/cli.md#sub-agents)), and say in `task.assignment` which bounded
+questions the sub-agents explore, inside the call's read paths and exclusions. Otherwise,
+set `subagents` only when the user asks for receiver sub-agents. Codex asks Claude Opus 5.5 high with Sonnet 5.5 high
 sub-agents (`{"model": "claude-sonnet-5-5", "effort": "high"}`). Sub-agents stay read-only.
 
 Use one session file for the whole brainstorm (`--session-file "$HANDOFF/session.json"`),
